@@ -1,5 +1,6 @@
-import React from 'react';
-import { TouchableOpacity, Text, StyleSheet } from 'react-native';
+import { vibrate } from "@/utils/haptics";
+import React from "react";
+import { StyleSheet, Text, TouchableOpacity } from "react-native";
 
 interface Props {
   label: string;
@@ -12,7 +13,10 @@ const AccessibleButton: React.FC<Props> = ({ label, onPress }) => (
     accessibilityLabel={label}
     accessibilityRole="button"
     style={styles.button}
-    onPress={onPress}
+    onPress={() => {
+      vibrate();
+      onPress();
+    }}
   >
     <Text style={styles.text}>{label}</Text>
   </TouchableOpacity>
@@ -20,14 +24,15 @@ const AccessibleButton: React.FC<Props> = ({ label, onPress }) => (
 
 const styles = StyleSheet.create({
   button: {
-    backgroundColor: '#003B73',
+    backgroundColor: "#003B73",
     padding: 20,
     borderRadius: 10,
     margin: 10,
-    alignItems: 'center',
+    alignItems: "center",
+    minWidth: 220,
   },
   text: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 18,
   },
 });
