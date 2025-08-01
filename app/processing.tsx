@@ -1,3 +1,4 @@
+import { extractTextFromImage } from "@/services/ocrService";
 import { Ionicons } from "@expo/vector-icons";
 import * as FileSystem from "expo-file-system";
 import { LinearGradient } from "expo-linear-gradient";
@@ -24,22 +25,22 @@ import {
 const { width, height } = Dimensions.get("window");
 
 // Mock OCR function - Replace with actual OCR service like Google Vision API, AWS Textract, etc.
-const extractTextFromImage = async (base64Image: string): Promise<string> => {
-  // Simulate API call delay
-  await new Promise((resolve) => setTimeout(resolve, 2000));
+// const extractTextFromImage = async (base64Image: string): Promise<string> => {
+//   // Simulate API call delay
+//   await new Promise((resolve) => setTimeout(resolve, 2000));
 
-  // Mock extracted text - Replace with actual OCR implementation
-  return `This is a sample extracted text from the image. In a real implementation, you would use services like:
+//   // Mock extracted text - Replace with actual OCR implementation
+//   return `This is a sample extracted text from the image. In a real implementation, you would use services like:
 
-• Google Cloud Vision API
-• AWS Textract
-• Azure Computer Vision
-• Tesseract.js for client-side OCR
+// • Google Cloud Vision API
+// • AWS Textract
+// • Azure Computer Vision
+// • Tesseract.js for client-side OCR
 
-The extracted text would appear here with proper formatting and line breaks preserved from the original document.
+// The extracted text would appear here with proper formatting and line breaks preserved from the original document.
 
-You can edit this text below, save it, share it, or have it read aloud using the controls provided.`;
-};
+// You can edit this text below, save it, share it, or have it read aloud using the controls provided.`;
+// };
 
 interface SavedText {
   id: string;

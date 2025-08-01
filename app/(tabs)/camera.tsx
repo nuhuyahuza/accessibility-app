@@ -1,6 +1,6 @@
+import { openGallery } from '@/utils/gallery';
 import { Ionicons } from '@expo/vector-icons';
 import { CameraType, CameraView, useCameraPermissions } from "expo-camera";
-import * as ImagePicker from 'expo-image-picker';
 import * as MediaLibrary from 'expo-media-library';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
@@ -59,7 +59,7 @@ export default function CameraScreen() {
     if (!cameraRef.current || loading) return;
 
     setLoading(true);
-    
+
     // Show capture animation
     Animated.sequence([
       Animated.timing(fadeAnim, {
@@ -75,17 +75,17 @@ export default function CameraScreen() {
     ]).start();
 
     try {
-      const photo = await cameraRef.current.takePictureAsync({ 
+      const photo = await cameraRef.current.takePictureAsync({
         base64: true,
         quality: 0.8,
-        exif: false
+        exif: false,
       });
 
       if (photo?.base64 && photo?.uri) {
         // Show captured image preview
         setCapturedImage(photo.uri);
         setShowPreview(true);
-        
+
         // Save to media library if permission granted
         if (mediaLibraryPermission?.granted) {
           await MediaLibrary.saveToLibraryAsync(photo.uri);
@@ -96,55 +96,20 @@ export default function CameraScreen() {
         setTimeout(() => {
           router.push({
             pathname: "/processing",
-            params: { base64: photo.base64 },
+            params: { base64: photo.base64, photoUri: photo.uri },
           });
         }, 1500);
       } else {
         Alert.alert("Error", "Failed to capture image");
       }
     } catch (err) {
-      console.error('Camera capture error:', err);
+      console.error("Camera capture error:", err);
       Alert.alert("Error", "Unable to take photo");
     } finally {
       setLoading(false);
     }
   };
 
-  const openGallery = async () => {
-    try {
-      // Request gallery permission if not granted
-      if (!mediaLibraryPermission?.granted) {
-        const permission = await requestMediaLibraryPermission();
-        if (!permission.granted) {
-          Alert.alert(
-            "Permission Required", 
-            "Please grant gallery access to select photos"
-          );
-          return;
-        }
-      }
-
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: false,
-        quality: 0.8,
-        base64: true,
-      });
-
-      if (!result.canceled && result.assets[0]) {
-        const asset = result.assets[0];
-        if (asset.base64) {
-          router.push({
-            pathname: "/processing",
-            params: { base64: asset.base64 },
-          });
-        }
-      }
-    } catch (error) {
-      console.error('Gallery error:', error);
-      Alert.alert("Error", "Unable to access gallery");
-    }
-  };
 
   const toggleCameraFacing = () => {
     setFacing(current => (current === 'back' ? 'front' : 'back'));
