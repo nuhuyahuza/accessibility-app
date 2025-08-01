@@ -3,15 +3,15 @@ import * as FileSystem from 'expo-file-system';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-	Alert,
-	ScrollView,
-	StatusBar,
-	StyleSheet,
-	Text,
-	TextInput,
-	TouchableOpacity,
-	View,
-} from 'react-native';
+  Alert,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
 interface SavedText {
   id: string;
@@ -23,9 +23,9 @@ interface SavedText {
 export default function LibraryScreen() {
   const router = useRouter();
   const [savedTexts, setSavedTexts] = useState<SavedText[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState("");
   const [filteredTexts, setFilteredTexts] = useState<SavedText[]>([]);
-  const [sortBy, setSortBy] = useState<'date' | 'title'>('date');
+  const [sortBy, setSortBy] = useState<"date" | "title">("date");
 
   useEffect(() => {
     loadSavedTexts();
@@ -38,12 +38,12 @@ export default function LibraryScreen() {
   const loadSavedTexts = async () => {
     try {
       const savedData = await FileSystem.readAsStringAsync(
-        FileSystem.documentDirectory + 'saved_texts.json'
-      ).catch(() => '[]');
+        FileSystem.documentDirectory + "saved_texts.json"
+      ).catch(() => "[]");
       const texts = JSON.parse(savedData);
       setSavedTexts(texts);
     } catch (error) {
-      console.log('Error loading saved texts:', error);
+      console.log("Error loading saved texts:", error);
     }
   };
 
@@ -56,7 +56,7 @@ export default function LibraryScreen() {
 
     // Sort texts
     filtered.sort((a, b) => {
-      if (sortBy === 'date') {
+      if (sortBy === "date") {
         return b.timestamp - a.timestamp;
       } else {
         return a.title.localeCompare(b.title);
@@ -68,24 +68,24 @@ export default function LibraryScreen() {
 
   const deleteSavedText = async (id: string) => {
     Alert.alert(
-      'Delete Text',
-      'Are you sure you want to delete this saved text?',
+      "Delete Text",
+      "Are you sure you want to delete this saved text?",
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: "Cancel", style: "cancel" },
         {
-          text: 'Delete',
-          style: 'destructive',
+          text: "Delete",
+          style: "destructive",
           onPress: async () => {
             const updatedTexts = savedTexts.filter((text) => text.id !== id);
             setSavedTexts(updatedTexts);
 
             try {
               await FileSystem.writeAsStringAsync(
-                FileSystem.documentDirectory + 'saved_texts.json',
+                FileSystem.documentDirectory + "saved_texts.json",
                 JSON.stringify(updatedTexts)
               );
             } catch (error) {
-              console.log('Error deleting saved text:', error);
+              console.log("Error deleting saved text:", error);
             }
           },
         },
@@ -95,33 +95,33 @@ export default function LibraryScreen() {
 
   const openText = (savedText: SavedText) => {
     router.push({
-      pathname: '/(tabs)/processing',
-      params: { 
-        savedText: JSON.stringify(savedText),
-        fromLibrary: 'true'
+      pathname: "/processing",
+      params: {
+        savedText: JSON.stringify(savedText) as string,
+        fromLibrary: "true",
       },
     });
   };
 
   const formatDate = (timestamp: number) => {
-    return new Date(timestamp).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
+    return new Date(timestamp).toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
     });
   };
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#f8f9fa" />
-      
+
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Library</Text>
         <Text style={styles.headerSubtitle}>
-          {savedTexts.length} saved {savedTexts.length === 1 ? 'text' : 'texts'}
+          {savedTexts.length} saved {savedTexts.length === 1 ? "text" : "texts"}
         </Text>
       </View>
 
@@ -137,7 +137,7 @@ export default function LibraryScreen() {
             onChangeText={setSearchQuery}
           />
           {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={() => setSearchQuery('')}>
+            <TouchableOpacity onPress={() => setSearchQuery("")}>
               <Ionicons name="close-circle" size={20} color="#666" />
             </TouchableOpacity>
           )}
@@ -145,20 +145,44 @@ export default function LibraryScreen() {
 
         <View style={styles.sortContainer}>
           <TouchableOpacity
-            style={[styles.sortButton, sortBy === 'date' && styles.sortButtonActive]}
-            onPress={() => setSortBy('date')}
+            style={[
+              styles.sortButton,
+              sortBy === "date" && styles.sortButtonActive,
+            ]}
+            onPress={() => setSortBy("date")}
           >
-            <Ionicons name="time-outline" size={16} color={sortBy === 'date' ? 'white' : '#666'} />
-            <Text style={[styles.sortText, sortBy === 'date' && styles.sortTextActive]}>
+            <Ionicons
+              name="time-outline"
+              size={16}
+              color={sortBy === "date" ? "white" : "#666"}
+            />
+            <Text
+              style={[
+                styles.sortText,
+                sortBy === "date" && styles.sortTextActive,
+              ]}
+            >
               Date
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.sortButton, sortBy === 'title' && styles.sortButtonActive]}
-            onPress={() => setSortBy('title')}
+            style={[
+              styles.sortButton,
+              sortBy === "title" && styles.sortButtonActive,
+            ]}
+            onPress={() => setSortBy("title")}
           >
-            <Ionicons name="text-outline" size={16} color={sortBy === 'title' ? 'white' : '#666'} />
-            <Text style={[styles.sortText, sortBy === 'title' && styles.sortTextActive]}>
+            <Ionicons
+              name="text-outline"
+              size={16}
+              color={sortBy === "title" ? "white" : "#666"}
+            />
+            <Text
+              style={[
+                styles.sortText,
+                sortBy === "title" && styles.sortTextActive,
+              ]}
+            >
               Title
             </Text>
           </TouchableOpacity>
@@ -212,7 +236,7 @@ export default function LibraryScreen() {
                 </Text>
                 <TouchableOpacity
                   style={styles.emptyButton}
-                  onPress={() => router.push('/(tabs)/camera')}
+                  onPress={() => router.push("/(tabs)/camera")}
                 >
                   <Text style={styles.emptyButtonText}>Start Scanning</Text>
                 </TouchableOpacity>

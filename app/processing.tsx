@@ -5,7 +5,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import * as Sharing from "expo-sharing";
 import * as Speech from "expo-speech";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -24,24 +24,6 @@ import {
 
 const { width, height } = Dimensions.get("window");
 
-// Mock OCR function - Replace with actual OCR service like Google Vision API, AWS Textract, etc.
-// const extractTextFromImage = async (base64Image: string): Promise<string> => {
-//   // Simulate API call delay
-//   await new Promise((resolve) => setTimeout(resolve, 2000));
-
-//   // Mock extracted text - Replace with actual OCR implementation
-//   return `This is a sample extracted text from the image. In a real implementation, you would use services like:
-
-// • Google Cloud Vision API
-// • AWS Textract
-// • Azure Computer Vision
-// • Tesseract.js for client-side OCR
-
-// The extracted text would appear here with proper formatting and line breaks preserved from the original document.
-
-// You can edit this text below, save it, share it, or have it read aloud using the controls provided.`;
-// };
-
 interface SavedText {
   id: string;
   text: string;
@@ -50,10 +32,9 @@ interface SavedText {
 }
 
 export default function ProcessingScreen() {
-  const { base64 } = useLocalSearchParams();
+  const { base64, fromLibrary, savedText } = useLocalSearchParams();
   const router = useRouter();
 
-  const [extractedText, setExtractedText] = useState<string>("");
   const [isProcessing, setIsProcessing] = useState(true);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
@@ -66,7 +47,6 @@ export default function ProcessingScreen() {
   const [processingProgress, setProcessingProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
-  const speechRef = useRef<any>(null);
   const imageUri = base64 ? `data:image/jpeg;base64,${base64}` : null;
 
   useEffect(() => {
@@ -78,7 +58,8 @@ export default function ProcessingScreen() {
 
   useEffect(() => {
     // Simulate processing progress
-    if (isProcessing) {
+    if (isProcessing && !savedText) {
+      console.log("Processing started");
       const interval = setInterval(() => {
         setProcessingProgress((prev) => {
           if (prev >= 90) {
@@ -92,6 +73,12 @@ export default function ProcessingScreen() {
     }
   }, [isProcessing]);
 
+  useEffect(() => {
+    if (fromLibrary && savedText && typeof savedText === "string") {
+      loadSavedText(JSON.parse(savedText) as SavedText);
+    }
+  }, [fromLibrary, savedText]);
+
   const processImage = async () => {
     if (!base64) return;
 
@@ -100,7 +87,6 @@ export default function ProcessingScreen() {
 
     try {
       const text = await extractTextFromImage(base64 as string);
-      setExtractedText(text);
       setEditableText(text);
       setProcessingProgress(100);
     } catch (err) {
@@ -263,11 +249,10 @@ export default function ProcessingScreen() {
 
   const loadSavedText = (savedText: SavedText) => {
     setEditableText(savedText.text);
-    setExtractedText(savedText.text);
     setShowSavedTexts(false);
   };
 
-  if (isProcessing) {
+  if (isProcessing && !savedText) {
     return (
       <View style={styles.processingContainer}>
         <StatusBar barStyle="light-content" backgroundColor="#1a1a1a" />
