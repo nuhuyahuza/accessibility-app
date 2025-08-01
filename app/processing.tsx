@@ -1,4 +1,4 @@
-import { extractTextFromImage } from "@/services/ocrService";
+import { extractTextFromImage } from "@/services/ocr";
 import { Ionicons } from "@expo/vector-icons";
 import * as FileSystem from "expo-file-system";
 import { LinearGradient } from "expo-linear-gradient";
