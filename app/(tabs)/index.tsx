@@ -52,7 +52,7 @@ export default function HomeScreen() {
       subtitle: "Capture & extract text",
       icon: "document-text-outline",
       gradient: ["#667eea", "#764ba2"],
-      route: "/(tabs)/camera",
+      route: "/scan",
       requiresCamera: true,
     },
     {
