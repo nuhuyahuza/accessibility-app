@@ -1,4 +1,7 @@
+import { useSettings } from "@/context/SettingsContext";
+import { useVoice } from "@/context/VoiceContext";
 import { openGallery } from "@/utils/gallery";
+import { speak } from "@/utils/speechUtils";
 import { Ionicons } from "@expo/vector-icons";
 import { useCameraPermissions } from "expo-camera";
 import * as FileSystem from "expo-file-system";
@@ -6,14 +9,14 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-  Alert,
-  Dimensions,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    Alert,
+    Dimensions,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 
 import type { ColorValue } from "react-native";
@@ -41,9 +44,12 @@ interface QuickAction {
 
 export default function HomeScreen() {
   const router = useRouter();
+  const { settings } = useSettings();
+  const { startListening, processTextCommand } = useVoice();
   const [permission] = useCameraPermissions();
   const [recentScans, setRecentScans] = useState<RecentScan[]>([]);
   const [savedTextsCount, setSavedTextsCount] = useState(0);
+  const [hasGreeted, setHasGreeted] = useState(false);
 
   const quickActions: QuickAction[] = [
     {
@@ -85,7 +91,14 @@ export default function HomeScreen() {
   useEffect(() => {
     loadRecentScans();
     loadSavedTextsCount();
-  }, []);
+    
+    // Greet user on first load
+    if (!hasGreeted && settings.userName) {
+      const greeting = `Hello ${settings.userName}! How can I help you today?`;
+      speak(greeting);
+      setHasGreeted(true);
+    }
+  }, [settings.userName, hasGreeted]);
 
   const loadRecentScans = async () => {
     try {
@@ -132,8 +145,7 @@ export default function HomeScreen() {
   };
 
   const handleQuickAction = (action: QuickAction) => {
-
-    if (action.requiresGallery ) {
+    if (action.requiresGallery) {
       openGallery();
       return;
     }
@@ -149,8 +161,16 @@ export default function HomeScreen() {
       return;
     }
 
-
     router.push(action.route as any);
+  };
+
+  const handleVoiceCommand = async () => {
+    try {
+      await startListening();
+      // Voice command processing will be handled by the VoiceService
+    } catch (error) {
+      console.error('Voice command error:', error);
+    }
   };
 
   const getTimeAgo = (timestamp: number) => {
@@ -194,15 +214,25 @@ export default function HomeScreen() {
       >
         <View style={styles.headerContent}>
           <View>
-            <Text style={styles.greeting}>Good morning!</Text>
-            <Text style={styles.headerTitle}>Ready to scan?</Text>
+            <Text style={styles.greeting}>
+              {settings.userName ? `Hello ${settings.userName}!` : 'Welcome!'}
+            </Text>
+            <Text style={styles.headerTitle}>How can I help you today?</Text>
           </View>
-          <TouchableOpacity
-            style={styles.profileButton}
-            onPress={() => router.push("/settings")}
-          >
-            <Ionicons name="settings-outline" size={24} color="white" />
-          </TouchableOpacity>
+          <View style={styles.headerButtons}>
+            <TouchableOpacity
+              style={styles.voiceButton}
+              onPress={handleVoiceCommand}
+            >
+              <Ionicons name="mic" size={20} color="white" />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.profileButton}
+              onPress={() => router.push("/(tabs)/settings")}
+            >
+              <Ionicons name="settings-outline" size={24} color="white" />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Stats Cards */}
@@ -350,6 +380,19 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 30,
+  },
+  headerButtons: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  voiceButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
   },
   greeting: {
     color: "rgba(255,255,255,0.8)",
