@@ -7,19 +7,19 @@ import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect, useState } from 'react';
 import {
-	ActivityIndicator,
-	Animated,
-	Dimensions,
-	SafeAreaView,
-	ScrollView,
-	StatusBar,
-	StyleSheet,
-	Text,
-	View
+    ActivityIndicator,
+    Animated,
+    Dimensions,
+    SafeAreaView,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    View
 } from 'react-native';
 import { useAccessibility } from '../context/AccessibilityContext';
 import { useVoice } from '../context/VoiceContext';
-import { OCRService } from '../services/OCRService';
+import { GoogleVisionService } from '../services/GoogleVisionService';
 
 const { width, height } = Dimensions.get('window');
 
@@ -133,7 +133,7 @@ const ScanScreen: React.FC = () => {
         setLastImageUri(result.assets[0].uri);
         TTSService.speak('Image captured successfully. Processing text, please wait.');
         
-        const ocrResult = await OCRService.processImage(result.assets[0].uri);
+        const ocrResult = await GoogleVisionService.detectText(result.assets[0].uri);
         
         setIsProcessing(false);
         
@@ -189,7 +189,7 @@ const ScanScreen: React.FC = () => {
       
       TTSService.speak('Reprocessing the last image...');
       
-      OCRService.processImage(lastImageUri).then(ocrResult => {
+      GoogleVisionService.detectText(lastImageUri).then(ocrResult => {
         setIsProcessing(false);
         
         if (ocrResult.error) {

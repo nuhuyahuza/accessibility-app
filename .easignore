@@ -1,0 +1,40 @@
+# Files to ignore during EAS Build
+
+# Node modules (will be reinstalled)
+node_modules/
+
+# Environment files (use EAS secrets instead)
+.env.local
+.env.development
+.env.test
+
+# Build outputs
+android/app/build/
+ios/build/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Testing
+coverage/
+.nyc_output/
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+

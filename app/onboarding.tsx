@@ -1,13 +1,16 @@
 import AccessibleButton from '@/components/AccessibleButton';
 import { useSettings } from '@/context/SettingsContext';
 import { useVoice } from '@/context/VoiceContext';
-import { speak } from '@/utils/speechUtils';
+import { GoogleSpeechService } from '@/services/GoogleSpeechService';
+import { TTSService } from '@/services/TTSServices';
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    Alert,
+    ActivityIndicator,
+    Animated,
     Dimensions,
     ScrollView,
     StyleSheet,
@@ -33,58 +36,161 @@ export default function Onboarding() {
   const [currentStep, setCurrentStep] = useState(0);
   const [userName, setUserName] = useState('');
   const [selectedVoice, setSelectedVoice] = useState('default');
+  const [isListening, setIsListening] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const pulseAnim = useState(new Animated.Value(1))[0];
 
   useEffect(() => {
     if (settings.isFirstLaunch) {
-      speak("Welcome to the Accessibility App! I'm here to help you read documents and navigate the world around you. Let's get started by setting up your preferences.");
+      TTSService.speak("Welcome to your Accessibility App! I'm here to help you read documents and navigate the world around you. This app is fully voice-controlled for your convenience. Let's get started by setting up your preferences. Say Next to continue, or tap the microphone button.");
     }
   }, []);
 
-  const handleNext = () => {
+  useEffect(() => {
+    if (isListening) {
+      startPulseAnimation();
+    } else {
+      pulseAnim.stopAnimation();
+      pulseAnim.setValue(1);
+    }
+  }, [isListening]);
+
+  const startPulseAnimation = () => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.15,
+          duration: 600,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 600,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+  };
+
+  const handleNext = async () => {
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    
     if (currentStep === 0 && !userName.trim()) {
-      Alert.alert('Name Required', 'Please enter your name to continue.');
+      TTSService.speak('Please enter your name to continue, or say skip to use default settings.');
       return;
     }
     
     if (currentStep < 2) {
       setCurrentStep(prev => prev + 1);
+      announceStep(currentStep + 1);
     } else {
-      // Complete onboarding
       update({
-        userName: userName.trim(),
+        userName: userName.trim() || 'User',
         preferredVoice: selectedVoice,
         isFirstLaunch: false,
       });
-      speak(`Welcome ${userName}! Your setup is complete. How can I help you today?`);
-      router.replace('/(tabs)');
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      TTSService.speak(`Welcome ${userName || 'User'}! Your setup is complete. Taking you to the home screen now.`);
+      setTimeout(() => {
+        router.replace('/(tabs)');
+      }, 2000);
     }
   };
 
-  const handleVoiceCommand = (command: string) => {
+  const announceStep = (step: number) => {
+    if (step === 1) {
+      TTSService.speak('Step 2: Choose your preferred voice. You can select different voice types. Say Next when ready, or say the name of a voice to select it.');
+    } else if (step === 2) {
+      TTSService.speak('Step 3: All set! You can now scan documents, use voice commands, and access all features. Say Get Started or tap the button to begin.');
+    }
+  };
+
+  const handleVoiceCommand = async (command: string) => {
     const lowerCommand = command.toLowerCase();
     
     if (lowerCommand.includes('next') || lowerCommand.includes('continue')) {
       handleNext();
     } else if (lowerCommand.includes('back') || lowerCommand.includes('previous')) {
       if (currentStep > 0) {
+        await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         setCurrentStep(prev => prev - 1);
+        TTSService.speak('Going back');
+      } else {
+        TTSService.speak('This is the first step.');
       }
+    } else if (lowerCommand.includes('skip')) {
+      update({
+        userName: 'User',
+        preferredVoice: 'default',
+        isFirstLaunch: false,
+      });
+      TTSService.speak('Skipping setup. Taking you to the home screen.');
+      setTimeout(() => router.replace('/(tabs)'), 1500);
+    } else if (lowerCommand.includes('repeat') || lowerCommand.includes('again')) {
+      announceStep(currentStep);
     } else if (lowerCommand.includes('help')) {
-      speak("You can say 'next' to continue, 'back' to go back, or 'help' for assistance.");
+      TTSService.speak("You can say Next to continue, Back to go back, Skip to skip setup, or Help for assistance.");
+    } else if (currentStep === 0 && !lowerCommand.includes('name')) {
+      setUserName(command.trim());
+      TTSService.speak(`Got it, ${command.trim()}. Say Next to continue.`);
+    } else if (currentStep === 1) {
+      if (lowerCommand.includes('default')) {
+        setSelectedVoice('default');
+        TTSService.speak('Default voice selected');
+      } else if (lowerCommand.includes('male')) {
+        setSelectedVoice('male');
+        TTSService.speak('Male voice selected');
+      } else if (lowerCommand.includes('female')) {
+        setSelectedVoice('female');
+        TTSService.speak('Female voice selected');
+      } else if (lowerCommand.includes('slow')) {
+        setSelectedVoice('slow');
+        TTSService.speak('Slow voice selected');
+      }
+    } else if (currentStep === 2 && (lowerCommand.includes('start') || lowerCommand.includes('begin'))) {
+      handleNext();
+    } else {
+      TTSService.speak(`I heard: ${command}. Say Help for available commands.`);
     }
   };
 
   const startVoiceInput = async () => {
+    if (isListening || isProcessing) return;
+
     try {
-      await startListening();
-      // In a real implementation, you'd process the voice input
-      // For now, we'll simulate it
-      setTimeout(() => {
-        const mockCommand = "next";
-        handleVoiceCommand(mockCommand);
-      }, 2000);
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      setIsListening(true);
+      
+      await GoogleSpeechService.startRecording();
+      TTSService.speak('Listening...');
+
+      setTimeout(async () => {
+        if (isListening) {
+          setIsListening(false);
+          setIsProcessing(true);
+          
+          const audioUri = await GoogleSpeechService.stopRecording();
+          
+          if (audioUri) {
+            const result = await GoogleSpeechService.recognizeSpeech(audioUri);
+            setIsProcessing(false);
+            
+            if (result.transcript) {
+              await handleVoiceCommand(result.transcript);
+            } else {
+              TTSService.speak("I didn't hear anything. Please try again.");
+            }
+          } else {
+            setIsProcessing(false);
+            TTSService.speak('Recording failed. Please try again.');
+          }
+        }
+      }, 4000);
     } catch (error) {
+      setIsListening(false);
+      setIsProcessing(false);
       console.error('Voice input error:', error);
+      TTSService.speak('Error with voice input. Tap the button to try again.');
     }
   };
 
@@ -193,13 +299,25 @@ export default function Onboarding() {
         {renderStep()}
 
         <View style={styles.buttonContainer}>
-          <TouchableOpacity
-            style={styles.voiceButton}
-            onPress={startVoiceInput}
-          >
-            <Ionicons name="mic" size={24} color="white" />
-            <Text style={styles.voiceButtonText}>Use Voice</Text>
-          </TouchableOpacity>
+          <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
+            <TouchableOpacity
+              style={[
+                styles.voiceButton,
+                (isListening || isProcessing) && styles.voiceButtonActive
+              ]}
+              onPress={startVoiceInput}
+              disabled={isListening || isProcessing}
+            >
+              {isProcessing ? (
+                <ActivityIndicator size="small" color="white" />
+              ) : (
+                <Ionicons name={isListening ? "mic" : "mic-outline"} size={24} color="white" />
+              )}
+              <Text style={styles.voiceButtonText}>
+                {isProcessing ? 'Processing...' : isListening ? 'Listening...' : 'Use Voice'}
+              </Text>
+            </TouchableOpacity>
+          </Animated.View>
           
           <AccessibleButton
             label={currentStep === 2 ? "Get Started" : "Next"}
@@ -327,6 +445,9 @@ const styles = StyleSheet.create({
     borderRadius: 25,
     paddingHorizontal: 20,
     paddingVertical: 12,
+  },
+  voiceButtonActive: {
+    backgroundColor: '#FF6B6B',
   },
   voiceButtonText: {
     color: 'white',

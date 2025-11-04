@@ -1,10 +1,10 @@
-// src/services/VoiceService.ts
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import * as Linking from "expo-linking";
 import { AICommandService } from './AICommandService';
 import { ContactService } from './ContactService';
-import { OCRService } from './OCRService';
+import { GoogleSpeechService } from './GoogleSpeechService';
+import { GoogleVisionService } from './GoogleVisionService';
 import { TTSService } from './TTSServices';
 
 export class VoiceService {
@@ -32,7 +32,32 @@ export class VoiceService {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       this.setIsListening(true);
       this.isListening = true;
-      TTSService.speak("Voice recognition is not available in Expo Go. Please use text input or create a development build for full voice features.");
+      
+      TTSService.speak("Listening... Speak now.");
+      
+      await GoogleSpeechService.startRecording();
+      
+      setTimeout(async () => {
+        if (this.isListening) {
+          await this.stopListening();
+          
+          const audioUri = await GoogleSpeechService.stopRecording();
+          
+          if (audioUri) {
+            TTSService.speak("Processing your command...");
+            const result = await GoogleSpeechService.recognizeSpeech(audioUri);
+            
+            if (result.error) {
+              TTSService.speak(`Error: ${result.error}`);
+            } else if (result.transcript) {
+              this.addToHistory(result.transcript);
+              await this.processVoiceCommand(result.transcript);
+            } else {
+              TTSService.speak("I didn't hear anything. Please try again.");
+            }
+          }
+        }
+      }, 3000);
     } catch (error) {
       console.error("Voice start error:", error);
       this.setIsListening(false);
@@ -44,6 +69,7 @@ export class VoiceService {
   static async stopListening() {
     try {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      await GoogleSpeechService.cancelRecording();
       this.setIsListening(false);
       this.isListening = false;
     } catch (error) {
@@ -356,7 +382,7 @@ export class VoiceService {
         );
         TTSService.speak("Image captured. Processing text, please wait.");
 
-        const ocrResult = await OCRService.processImage(result.assets[0].uri);
+        const ocrResult = await GoogleVisionService.detectText(result.assets[0].uri);
 
         if (ocrResult.error) {
           await Haptics.notificationAsync(

@@ -1,50 +1,165 @@
-# Welcome to your Expo app 👋
+# Accessibility App for Visually Impaired Users
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+A fully voice-controlled mobile application designed for visually impaired users to scan, read, and manage documents.
 
-## Get started
+## ✨ Key Features
 
-1. Install dependencies
+- 🎤 **Complete Voice Control** - Navigate entire app using voice commands
+- 📄 **Document Scanning** - OCR with Google Cloud Vision API
+- 🔊 **Text-to-Speech** - Read documents aloud with playback controls
+- ⏯️ **Playback Controls** - Play, pause, stop, resume, adjust speed
+- 🎙️ **Voice Notes** - Record and transcribe voice notes
+- 📱 **QR/Barcode Scanner** - Scan codes and read information
+- 🔍 **Object Detection** - Identify objects in photos
+- 👥 **Voice Onboarding** - Setup via voice commands only
 
-   ```bash
-   npm install
-   ```
+## 🚀 Quick Start
 
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
+### 1. Install Dependencies
 ```bash
-npm run reset-project
+npm install
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+### 2. Configure API Key
+Create `.env` file:
+```env
+GOOGLE_VISION_API_KEY=your_google_cloud_api_key_here
+```
 
-## Learn more
+Get your API key from [Google Cloud Console](https://console.cloud.google.com/)
 
-To learn more about developing your project with Expo, look at the following resources:
+### 3. Build APK
+```bash
+npm run build:apk
+```
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+That's it! The APK will be ready to download when build completes.
 
-## Join the community
+## 📱 Installation
 
-Join our community of developers creating universal apps.
+After building, you'll get a download link:
+1. Download the APK file
+2. Transfer to your Android device
+3. Enable "Install from Unknown Sources" in settings
+4. Tap the APK to install
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+## 🎤 Voice Commands
+
+### Global Commands
+- "Help" - Get available commands
+- "Home" - Go to home screen
+- "Scan document" - Start scanning
+- "Library" - View saved documents
+- "Settings" - Open settings
+
+### Document Reading
+- "Play" / "Read" - Start reading
+- "Pause" - Pause reading
+- "Stop" - Stop completely
+- "Continue" - Resume reading
+- "Faster" / "Slower" - Adjust speed
+- "Repeat" - Read again
+- "Save" - Save document
+
+### Navigation
+- "Next" - Go forward
+- "Back" - Go back
+- "Repeat" - Hear again
+- "Skip" - Skip section
+
+## 🛠️ Development
+
+### Run in Development
+```bash
+npm start
+```
+
+Then scan QR code with Expo Go app.
+
+**Note**: Voice features require a built app, not Expo Go.
+
+### Build Commands
+```bash
+# Build APK (recommended)
+npm run build:apk
+
+# Preview build
+npm run build:preview
+
+# Production build
+npm run build:production
+```
+
+## 📚 Documentation
+
+- [`SETUP.md`](SETUP.md) - Complete setup guide
+- [`BUILD_INSTRUCTIONS.md`](BUILD_INSTRUCTIONS.md) - APK building guide
+- [`VOICE_ACCESSIBILITY_FEATURES.md`](VOICE_ACCESSIBILITY_FEATURES.md) - Voice features
+- [`IMPLEMENTATION_SUMMARY.md`](IMPLEMENTATION_SUMMARY.md) - Technical details
+
+## 🔑 API Requirements
+
+### Google Cloud APIs
+1. **Cloud Vision API** - For OCR and object detection
+2. **Cloud Speech-to-Text API** - For voice recognition
+
+Both use the same API key. Free tier includes:
+- Vision: 1,000 requests/month
+- Speech: 60 minutes/month
+
+## 🎯 For Visually Impaired Users
+
+This app is designed to be used entirely by voice:
+
+1. **First Time**: Voice-guided onboarding
+2. **Scanning**: Say "Scan document" to take photo
+3. **Reading**: App automatically reads text aloud
+4. **Control**: Use voice for play/pause/speed
+5. **Save**: Say "Save" to keep documents
+
+All features provide voice feedback and can be controlled without looking at the screen.
+
+## 📦 Tech Stack
+
+- **Framework**: React Native (Expo)
+- **OCR**: Google Cloud Vision API
+- **Speech Recognition**: Google Cloud Speech-to-Text API
+- **Text-to-Speech**: Expo Speech
+- **UI**: React Native with Expo modules
+
+## 🏗️ Build System
+
+Uses **EAS Build** (Expo Application Services):
+- Cloud-based builds
+- No local Android Studio required
+- Automatic dependency management
+- 30 free builds per month
+
+## 🔒 Permissions
+
+- **Camera**: For document scanning
+- **Microphone**: For voice commands
+- **Storage**: For saving documents
+- **Internet**: For API calls
+
+## 📄 License
+
+Private and Proprietary
+
+## 🤝 Support
+
+For issues or questions:
+1. Check documentation files
+2. Review troubleshooting sections
+3. Verify API keys are configured
+
+## 📊 Status
+
+**Version**: 1.0.0  
+**Platform**: Android  
+**Build System**: EAS Build  
+**Status**: ✅ Production Ready
+
+---
+
+Built with ❤️ for accessibility
