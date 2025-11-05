@@ -1,5 +1,5 @@
 // utils/storeImage.ts
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 
 export const storeImage = async (uri: string): Promise<string> => {
   const filename = uri.split('/').pop();

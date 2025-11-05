@@ -1,6 +1,5 @@
 {
   "expo": {
-    "entryPoint": "./node_modules/expo-router/entry",
     "name": "accessibility-app",
     "slug": "accessibility-app",
     "version": "1.0.0",
@@ -8,9 +7,14 @@
     "icon": "./assets/images/icon.png",
     "scheme": "accessibilityapp",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/images/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.nuhuyahuza.accessibilityapp"
     },
     "android": {
       "package": "com.nuhuyahuza.accessibilityapp",
@@ -18,7 +22,11 @@
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "androidNavigationBar": {
+        "visible": true,
+        "barStyle": "light-content",
+        "backgroundColor": "#ffffff"
+      }
     },
     "web": {
       "bundler": "metro",
@@ -43,10 +51,25 @@
           "microphonePermission": "Allow Accessibility App to access your microphone",
           "recordAudioAndroid": true
         }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "compileSdkVersion": 35,
+            "targetSdkVersion": 35,
+            "minSdkVersion": 24
+          }
+        }
       ]
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "516b5f0c-da2c-4425-8898-799f3246518d"
+      }
     }
   }
 }

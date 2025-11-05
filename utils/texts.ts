@@ -1,4 +1,4 @@
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 
 export const getAllNotes = async (): Promise<{ uri: string, note: string }[]> => {
   const notesDir = `${FileSystem.documentDirectory}notes/`;

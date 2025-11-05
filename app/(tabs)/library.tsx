@@ -1,16 +1,19 @@
+import { TextReviewModal } from '../../components/TextReviewModal';
+import { MD } from '../../constants/MaterialDesign';
+import { TTSService } from '../../services/TTSServices';
 import { Ionicons } from '@expo/vector-icons';
-import * as FileSystem from 'expo-file-system';
-import { useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import * as FileSystem from 'expo-file-system/legacy';
+import { useRouter, useFocusEffect } from 'expo-router';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
-  Alert,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    Alert,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 
 interface SavedText {
@@ -26,10 +29,20 @@ export default function LibraryScreen() {
   const [searchQuery, setSearchQuery] = useState("");
   const [filteredTexts, setFilteredTexts] = useState<SavedText[]>([]);
   const [sortBy, setSortBy] = useState<"date" | "title">("date");
+  const [selectedText, setSelectedText] = useState<SavedText | null>(null);
+  const [showTextModal, setShowTextModal] = useState(false);
 
   useEffect(() => {
     loadSavedTexts();
   }, []);
+
+  // Reload saved texts when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      console.log('📚 Library screen focused - reloading saved texts');
+      loadSavedTexts();
+    }, [])
+  );
 
   useEffect(() => {
     filterTexts();
@@ -94,13 +107,14 @@ export default function LibraryScreen() {
   };
 
   const openText = (savedText: SavedText) => {
-    router.push({
-      pathname: "/processing",
-      params: {
-        savedText: JSON.stringify(savedText) as string,
-        fromLibrary: "true",
-      },
-    });
+    setSelectedText(savedText);
+    setShowTextModal(true);
+    TTSService.speak(`Opening ${savedText.title}`);
+  };
+
+  const handleCloseModal = () => {
+    setShowTextModal(false);
+    setSelectedText(null);
   };
 
   const formatDate = (timestamp: number) => {
@@ -245,6 +259,14 @@ export default function LibraryScreen() {
           </View>
         )}
       </ScrollView>
+
+      <TextReviewModal
+        visible={showTextModal}
+        text={selectedText?.text || ''}
+        title={selectedText?.title || 'Saved Document'}
+        onClose={handleCloseModal}
+        autoPlay={true}
+      />
     </View>
   );
 }

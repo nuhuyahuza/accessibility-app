@@ -31,6 +31,8 @@ export default function QRScannerScreen() {
   const [scannedData, setScannedData] = useState<string>('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [scanType, setScanType] = useState<'qr' | 'barcode' | 'text'>('qr');
+  const [useNativeScanner, setUseNativeScanner] = useState(true);
+  const [hasScanned, setHasScanned] = useState(false);
   const cameraRef = useRef<CameraView>(null);
   
   const fadeAnim = useState(new Animated.Value(0))[0];
@@ -51,9 +53,30 @@ export default function QRScannerScreen() {
     ]).start();
 
     TTSService.speak(
-      'QR and barcode scanner ready. Point your camera at a QR code, barcode, or tap the gallery button to scan from an image.'
+      'QR and barcode scanner ready. Point your camera at a QR code or barcode. It will scan automatically when detected.'
     );
   }, []);
+
+  const handleBarcodeScanned = async ({ type, data }: { type: string; data: string }) => {
+    if (hasScanned || !data) return;
+    
+    setHasScanned(true);
+    setScannedData(data);
+    
+    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    
+    console.log(`Native scanner detected ${type}:`, data);
+    
+    if (isUrl(data)) {
+      TTSService.speak(`QR code detected. URL found: ${data}. Tap Open to visit the link.`);
+    } else {
+      TTSService.speak(`Code detected. Content: ${data}`);
+    }
+    
+    setTimeout(() => {
+      setHasScanned(false);
+    }, 3000);
+  };
 
   const handleCapture = async () => {
     try {
@@ -95,31 +118,39 @@ export default function QRScannerScreen() {
 
   const processImage = async (imageUri: string) => {
     try {
+      setIsProcessing(true);
       TTSService.speak('Processing image...');
+      
+      console.log('Processing image:', imageUri);
       
       const barcodes = await GoogleVisionService.detectBarcodes(imageUri);
       
+      console.log('Barcodes detected:', barcodes);
+      
       setIsProcessing(false);
 
-      if (barcodes.length > 0) {
+      if (barcodes.length > 0 && barcodes[0].value) {
         const data = barcodes[0].value;
         setScannedData(data);
         await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         
+        console.log('QR/Barcode data:', data);
+        
         if (isUrl(data)) {
-          TTSService.speak(`QR code detected. URL found: ${data}. Would you like to open it?`);
+          TTSService.speak(`QR code detected. URL found: ${data}. Tap Open to visit the link.`);
         } else {
-          TTSService.speak(`Code detected: ${data}`);
+          TTSService.speak(`Code detected. Content: ${data}`);
         }
       } else {
         await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-        TTSService.speak('No QR code or barcode detected in the image. Please try again with better lighting.');
+        console.log('No data found in image');
+        TTSService.speak('No QR code or barcode detected. Please ensure the code is clearly visible and well-lit, then try again.');
       }
     } catch (error) {
       setIsProcessing(false);
       console.error('Processing error:', error);
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      TTSService.speak('Error processing image. Please try again.');
+      TTSService.speak('Error processing image. Please check your internet connection and try again.');
     }
   };
 
@@ -212,13 +243,35 @@ export default function QRScannerScreen() {
           </View>
         </BlurView>
 
-        <View style={styles.cameraContainer}>
-          <CameraView
-            ref={cameraRef}
-            style={styles.camera}
-            facing="back"
-          >
-            <View style={styles.scanOverlay}>
+      <View style={styles.cameraContainer}>
+        <CameraView
+          ref={cameraRef}
+          style={styles.camera}
+          facing="back"
+          barcodeScannerSettings={
+            useNativeScanner
+              ? {
+                  barcodeTypes: [
+                    'qr',
+                    'code128',
+                    'code39',
+                    'code93',
+                    'codabar',
+                    'ean13',
+                    'ean8',
+                    'itf14',
+                    'upc_a',
+                    'upc_e',
+                    'pdf417',
+                    'aztec',
+                    'datamatrix',
+                  ],
+                }
+              : undefined
+          }
+          onBarcodeScanned={useNativeScanner ? handleBarcodeScanned : undefined}
+        >
+          <View style={styles.scanOverlay}>
               <View style={styles.scanFrame}>
                 <View style={[styles.corner, styles.cornerTL]} />
                 <View style={[styles.corner, styles.cornerTR]} />
@@ -245,28 +298,46 @@ export default function QRScannerScreen() {
 
         <View style={styles.controlsContainer}>
           <View style={styles.scanTypeSelector}>
-            {(['qr', 'barcode', 'text'] as const).map((type) => (
-              <TouchableOpacity
-                key={type}
+            <TouchableOpacity
+              style={[
+                styles.scanTypeButton,
+                useNativeScanner && styles.scanTypeButtonActive,
+              ]}
+              onPress={() => {
+                setUseNativeScanner(true);
+                setScannedData('');
+                TTSService.speak('Automatic scanning enabled. Point camera at code.');
+              }}
+            >
+              <Text
                 style={[
-                  styles.scanTypeButton,
-                  scanType === type && styles.scanTypeButtonActive,
+                  styles.scanTypeText,
+                  useNativeScanner && styles.scanTypeTextActive,
                 ]}
-                onPress={() => {
-                  setScanType(type);
-                  TTSService.speak(`Switched to ${type} mode`);
-                }}
               >
-                <Text
-                  style={[
-                    styles.scanTypeText,
-                    scanType === type && styles.scanTypeTextActive,
-                  ]}
-                >
-                  {type.toUpperCase()}
-                </Text>
-              </TouchableOpacity>
-            ))}
+                AUTO
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.scanTypeButton,
+                !useNativeScanner && styles.scanTypeButtonActive,
+              ]}
+              onPress={() => {
+                setUseNativeScanner(false);
+                setScannedData('');
+                TTSService.speak('Manual mode. Capture photo to scan.');
+              }}
+            >
+              <Text
+                style={[
+                  styles.scanTypeText,
+                  !useNativeScanner && styles.scanTypeTextActive,
+                ]}
+              >
+                MANUAL
+              </Text>
+            </TouchableOpacity>
           </View>
 
           <View style={styles.actionButtons}>
@@ -283,24 +354,27 @@ export default function QRScannerScreen() {
               </LinearGradient>
             </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.captureButton}
-              onPress={handleCapture}
-              disabled={isProcessing}
-            >
-              <LinearGradient
-                colors={['#4facfe', '#00f2fe']}
-                style={styles.captureButtonGradient}
+            {!useNativeScanner && (
+              <TouchableOpacity
+                style={styles.captureButton}
+                onPress={handleCapture}
+                disabled={isProcessing}
               >
-                <Ionicons name="scan" size={40} color="white" />
-              </LinearGradient>
-            </TouchableOpacity>
+                <LinearGradient
+                  colors={['#4facfe', '#00f2fe']}
+                  style={styles.captureButtonGradient}
+                >
+                  <Ionicons name="scan" size={40} color="white" />
+                </LinearGradient>
+              </TouchableOpacity>
+            )}
 
             <TouchableOpacity
               style={styles.iconButton}
               onPress={() => {
                 setScannedData('');
-                TTSService.speak('Scanner reset');
+                setHasScanned(false);
+                TTSService.speak('Scanner reset. Ready to scan.');
               }}
               disabled={isProcessing}
             >

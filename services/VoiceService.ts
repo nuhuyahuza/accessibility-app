@@ -3,6 +3,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as Linking from "expo-linking";
 import { AICommandService } from './AICommandService';
 import { ContactService } from './ContactService';
+import { FallbackOCRService } from './FallbackOCRService';
 import { GoogleSpeechService } from './GoogleSpeechService';
 import { GoogleVisionService } from './GoogleVisionService';
 import { TTSService } from './TTSServices';
@@ -33,9 +34,10 @@ export class VoiceService {
       this.setIsListening(true);
       this.isListening = true;
       
-      TTSService.speak("Listening... Speak now.");
+      console.log('Attempting to start voice listening...');
       
       await GoogleSpeechService.startRecording();
+      TTSService.speak("Listening... Speak now.");
       
       setTimeout(async () => {
         if (this.isListening) {
@@ -62,7 +64,12 @@ export class VoiceService {
       console.error("Voice start error:", error);
       this.setIsListening(false);
       this.isListening = false;
-      TTSService.speak("Voice recognition error. Please try again.");
+      
+      if (error instanceof Error && error.message.includes('Expo Go')) {
+        TTSService.speak("Voice recognition is not available in Expo Go. You can use touch controls, or build a development APK for full voice features.");
+      } else {
+        TTSService.speak("Voice recognition error. Please check microphone permissions.");
+      }
     }
   }
 
@@ -382,9 +389,18 @@ export class VoiceService {
         );
         TTSService.speak("Image captured. Processing text, please wait.");
 
-        const ocrResult = await GoogleVisionService.detectText(result.assets[0].uri);
+        let ocrResult = await GoogleVisionService.detectText(result.assets[0].uri);
 
-        if (ocrResult.error) {
+        // If Google Vision fails or has no API key, try fallback
+        if (ocrResult.error && ocrResult.error.includes('API key')) {
+          await Haptics.notificationAsync(
+            Haptics.NotificationFeedbackType.Warning
+          );
+          TTSService.speak("Google Vision API not configured. Using test mode with sample text.");
+          ocrResult = await FallbackOCRService.processMockImage();
+        }
+
+        if (ocrResult.error && !ocrResult.text) {
           await Haptics.notificationAsync(
             Haptics.NotificationFeedbackType.Error
           );

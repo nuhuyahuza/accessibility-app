@@ -1,5 +1,8 @@
+import { GlobalVoiceCommandService } from '@/services/GlobalVoiceCommandService';
+import { TTSService } from '@/services/TTSServices';
+import { WakeWordService } from '@/services/WakeWordService';
 import { useRouter } from 'expo-router';
-import React, { createContext, ReactNode, useContext, useEffect } from 'react';
+import React, { createContext, ReactNode, useContext, useEffect, useState } from 'react';
 import { VoiceService } from '../services/VoiceService';
 import { useAccessibility } from './AccessibilityContext';
 
@@ -10,6 +13,9 @@ interface VoiceContextType {
   getLastRecognizedText: () => string;
   getCommandHistory: () => string[];
   clearHistory: () => void;
+  startWakeWordListening: () => void;
+  stopWakeWordListening: () => void;
+  isWakeWordActive: boolean;
 }
 
 const VoiceContext = createContext<VoiceContextType | undefined>(undefined);
@@ -25,13 +31,20 @@ export const useVoice = (): VoiceContextType => {
 export const VoiceProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const { setIsListening } = useAccessibility();
   const router = useRouter();
+  const [isWakeWordActive, setIsWakeWordActive] = useState(false);
 
   useEffect(() => {
-    // Initialize VoiceService with Expo Router
     VoiceService.initialize(router, setIsListening);
+    GlobalVoiceCommandService.initialize(router);
+    
+    WakeWordService.initialize(() => {
+      setIsWakeWordActive(true);
+      TTSService.speak('Yes?');
+    });
 
     return () => {
       VoiceService.cleanup();
+      WakeWordService.cleanup();
     };
   }, [router, setIsListening]);
 
@@ -59,6 +72,18 @@ export const VoiceProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     VoiceService.clearHistory();
   };
 
+  const startWakeWordListening = () => {
+    WakeWordService.startListening();
+    setIsWakeWordActive(true);
+    console.log('Wake word listening started');
+  };
+
+  const stopWakeWordListening = () => {
+    WakeWordService.stopListening();
+    setIsWakeWordActive(false);
+    console.log('Wake word listening stopped');
+  };
+
   const value: VoiceContextType = {
     startListening,
     stopListening,
@@ -66,6 +91,9 @@ export const VoiceProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     getLastRecognizedText,
     getCommandHistory,
     clearHistory,
+    startWakeWordListening,
+    stopWakeWordListening,
+    isWakeWordActive,
   };
 
   return (

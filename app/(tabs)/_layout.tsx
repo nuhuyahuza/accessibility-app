@@ -1,8 +1,24 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
 import { Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function TabLayout() {
+  const insets = useSafeAreaInsets();
+  
+  // Calculate bottom padding for Android gesture navigation
+  const bottomPadding = Platform.select({
+    ios: 20,
+    android: Math.max(insets.bottom, 10), // At least 10, more if gesture nav is present
+    default: 10,
+  });
+  
+  const tabBarHeight = Platform.select({
+    ios: 90,
+    android: 70 + bottomPadding,
+    default: 70,
+  });
+  
   return (
     <Tabs
       screenOptions={{
@@ -13,9 +29,9 @@ export default function TabLayout() {
           backgroundColor: 'white',
           borderTopWidth: 1,
           borderTopColor: '#f0f0f0',
-          paddingBottom: Platform.OS === 'ios' ? 20 : 10,
+          paddingBottom: bottomPadding,
           paddingTop: 10,
-          height: Platform.OS === 'ios' ? 90 : 70,
+          height: tabBarHeight,
           elevation: 8,
           shadowColor: '#000',
           shadowOffset: { width: 0, height: -2 },

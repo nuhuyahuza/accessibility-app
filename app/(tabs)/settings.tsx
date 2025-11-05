@@ -1,5 +1,7 @@
+import { SettingsService } from "@/services/SettingsService";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
 import * as Speech from "expo-speech";
 import React, { useEffect, useState } from "react";
@@ -35,6 +37,7 @@ export default function SettingsScreen() {
     notifications: true,
     hapticFeedback: true,
     autoCapture: false,
+    scanQuality: 'high' as 'low' | 'medium' | 'high',
   });
 
   useEffect(() => {
@@ -61,38 +64,91 @@ export default function SettingsScreen() {
     }
   };
 
-  const toggleSetting = (key: keyof typeof settings) => {
+  const toggleSetting = async (key: keyof typeof settings) => {
     const newSettings = { ...settings, [key]: !settings[key] };
     saveSettings(newSettings);
+    
+    // Haptic feedback if enabled
+    if (settings.hapticFeedback && key !== 'hapticFeedback') {
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } else if (key === 'hapticFeedback' && newSettings.hapticFeedback) {
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    
+    // Announce the change if speech is enabled
+    if (settings.speechEnabled || key === 'speechEnabled') {
+      const value = newSettings[key] ? "enabled" : "disabled";
+      const settingName = key.replace(/([A-Z])/g, ' $1').trim();
+      Speech.speak(`${settingName} ${value}`, { rate: 0.8 });
+    }
   };
 
   const testTTS = async () => {
     try {
-      await Speech.speak("This is a test of the text-to-speech feature.", {
+      if (settings.hapticFeedback) {
+        await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      }
+      
+      await Speech.speak("This is a test of the text-to-speech feature. Your voice sounds great!", {
         language: "en",
         pitch: 1.0,
         rate: 0.75,
       });
     } catch (error) {
+      console.error("TTS test error:", error);
       Alert.alert("Error", "Failed to test text-to-speech");
     }
   };
 
   const clearAllData = () => {
+    if (settings.speechEnabled) {
+      Speech.speak("Warning: This will delete all your data", { rate: 0.8 });
+    }
+    
     Alert.alert(
       "Clear All Data",
       "This will delete all saved texts and settings. This action cannot be undone.",
       [
-        { text: "Cancel", style: "cancel" },
+        { 
+          text: "Cancel", 
+          style: "cancel",
+          onPress: () => {
+            if (settings.speechEnabled) {
+              Speech.speak("Cancelled", { rate: 0.8 });
+            }
+          }
+        },
         {
           text: "Clear All",
           style: "destructive",
           onPress: async () => {
             try {
+              if (settings.hapticFeedback) {
+                await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+              }
+              
               await AsyncStorage.clear();
+              
+              if (settings.hapticFeedback) {
+                await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              }
+              
               Alert.alert("Success", "All data has been cleared");
+              Speech.speak("All data has been cleared", { rate: 0.8 });
+              
+              // Reload default settings
+              setSettings({
+                autoSave: true,
+                speechEnabled: true,
+                darkMode: false,
+                notifications: true,
+                hapticFeedback: true,
+                autoCapture: false,
+              });
             } catch (error) {
+              console.error("Clear data error:", error);
               Alert.alert("Error", "Failed to clear data");
+              Speech.speak("Failed to clear data", { rate: 0.8 });
             }
           },
         },
@@ -104,6 +160,71 @@ export default function SettingsScreen() {
     Linking.openURL(url).catch(() => {
       Alert.alert("Error", "Unable to open link");
     });
+  };
+
+  const handleExportData = async () => {
+    try {
+      if (settings.hapticFeedback) {
+        await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      }
+
+      if (settings.speechEnabled) {
+        Speech.speak("Exporting your data", { rate: 0.8 });
+      }
+
+      await SettingsService.exportData();
+
+      if (settings.hapticFeedback) {
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+
+      Alert.alert("Success", "Data exported successfully!");
+      
+      if (settings.speechEnabled) {
+        Speech.speak("Data exported successfully", { rate: 0.8 });
+      }
+    } catch (error) {
+      console.error("Export error:", error);
+      
+      if (settings.hapticFeedback) {
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      }
+
+      Alert.alert("Error", "Failed to export data. Please try again.");
+      
+      if (settings.speechEnabled) {
+        Speech.speak("Failed to export data", { rate: 0.8 });
+      }
+    }
+  };
+
+  const handleScanQuality = () => {
+    const qualities: Array<'low' | 'medium' | 'high'> = ['low', 'medium', 'high'];
+    const currentIndex = qualities.indexOf(settings.scanQuality);
+    const nextQuality = qualities[(currentIndex + 1) % qualities.length];
+
+    const qualityDescriptions = {
+      low: 'Low quality - Faster processing, smaller files',
+      medium: 'Medium quality - Balanced',
+      high: 'High quality - Best accuracy, larger files',
+    };
+
+    const newSettings = { ...settings, scanQuality: nextQuality };
+    saveSettings(newSettings);
+
+    if (settings.hapticFeedback) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+
+    Alert.alert(
+      "Scan Quality",
+      qualityDescriptions[nextQuality],
+      [{ text: "OK" }]
+    );
+
+    if (settings.speechEnabled) {
+      Speech.speak(`Scan quality set to ${nextQuality}`, { rate: 0.8 });
+    }
   };
 
   const settingSections = [
@@ -154,11 +275,10 @@ export default function SettingsScreen() {
         {
           id: "scanQuality",
           title: "Scan Quality",
-          subtitle: "High quality • Uses more storage",
+          subtitle: `${settings.scanQuality.charAt(0).toUpperCase() + settings.scanQuality.slice(1)} quality`,
           icon: "eye-outline" as const,
           type: "navigation" as const,
-          onPress: () =>
-            Alert.alert("Coming Soon", "This feature will be available soon"),
+          onPress: handleScanQuality,
         },
       ],
     },
@@ -192,9 +312,8 @@ export default function SettingsScreen() {
           title: "Export Data",
           subtitle: "Export all saved texts",
           icon: "download-outline" as const,
-          type: "navigation" as const,
-          onPress: () =>
-            Alert.alert("Coming Soon", "Export feature will be available soon"),
+          type: "action" as const,
+          onPress: handleExportData,
         },
         {
           id: "clearData",

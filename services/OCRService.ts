@@ -2,7 +2,7 @@ import { OCRResult } from "@/types";
 
 import Constants from 'expo-constants';
 
-const apiKey = Constants.expoConfig?.extra?.OCR_API_KEY; // Replace with your actual API key
+const apiKey = Constants.expoConfig?.extra?.OCR_API_KEY || Constants.manifest?.extra?.OCR_API_KEY; // Replace with your actual API key
 export class OCRService {
   private static readonly API_URL = 'https://api.ocr.space/parse/image';
   // Replace with your OCR.space API key - get free key at https://ocr.space/ocrapi

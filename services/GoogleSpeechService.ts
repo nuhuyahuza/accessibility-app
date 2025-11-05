@@ -1,8 +1,8 @@
 import { Audio } from 'expo-av';
 import Constants from 'expo-constants';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 
-const GOOGLE_SPEECH_API_KEY = Constants.expoConfig?.extra?.GOOGLE_VISION_API_KEY;
+const GOOGLE_SPEECH_API_KEY = Constants.expoConfig?.extra?.GOOGLE_VISION_API_KEY || Constants.manifest?.extra?.GOOGLE_VISION_API_KEY;
 const GOOGLE_SPEECH_API_URL = 'https://speech.googleapis.com/v1/speech:recognize';
 
 export interface SpeechRecognitionResult {
@@ -17,18 +17,24 @@ export class GoogleSpeechService {
 
   static async startRecording(): Promise<void> {
     try {
+      console.log('Requesting audio permission...');
       const { status } = await Audio.requestPermissionsAsync();
       
       if (status !== 'granted') {
-        throw new Error('Microphone permission not granted');
+        throw new Error('Microphone permission not granted. Please enable microphone access in device settings.');
       }
 
+      console.log('Setting audio mode...');
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: true,
         playsInSilentModeIOS: true,
+        staysActiveInBackground: false,
       });
 
+      console.log('Creating recording instance...');
       const recording = new Audio.Recording();
+      
+      console.log('Preparing to record...');
       await recording.prepareToRecordAsync({
         android: {
           extension: '.m4a',
@@ -55,12 +61,21 @@ export class GoogleSpeechService {
         },
       });
 
+      console.log('Starting recording...');
       await recording.startAsync();
       this.recording = recording;
       this.isRecording = true;
-      console.log('Recording started');
+      console.log('Recording started successfully');
     } catch (error) {
       console.error('Failed to start recording:', error);
+      this.recording = null;
+      this.isRecording = false;
+      
+      if (error instanceof Error) {
+        if (error.message.includes('recorder not prepared') || error.message.includes('E_AUDIO_RECORDINGERROR')) {
+          throw new Error('Voice recording is not available in Expo Go. Please build a development APK to use voice features. Run: npm run build:apk');
+        }
+      }
       throw error;
     }
   }

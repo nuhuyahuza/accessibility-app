@@ -1,25 +1,30 @@
 import { AccessibleButton } from '@/components/AccessibilityButton1';
-import { TTSService } from '@/services/TTSServices';
+import { TextReviewModal } from '../components/TextReviewModal';
+import { MD } from '../constants/MaterialDesign';
+import { GoogleVisionService } from '../services/GoogleVisionService';
+import { SettingsService } from '../services/SettingsService';
+import { TTSService } from '../services/TTSServices';
+import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
+import * as FileSystem from 'expo-file-system/legacy';
 import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Animated,
-    Dimensions,
-    SafeAreaView,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    View
+	ActivityIndicator,
+	Animated,
+	Dimensions,
+	SafeAreaView,
+	StatusBar,
+	StyleSheet,
+	Text,
+	TouchableOpacity,
+	View
 } from 'react-native';
 import { useAccessibility } from '../context/AccessibilityContext';
 import { useVoice } from '../context/VoiceContext';
-import { GoogleVisionService } from '../services/GoogleVisionService';
 
 const { width, height } = Dimensions.get('window');
 
@@ -31,18 +36,34 @@ const ScanScreen: React.FC = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [confidence, setConfidence] = useState(0);
   const [lastImageUri, setLastImageUri] = useState<string>('');
+  const [showTextModal, setShowTextModal] = useState(false);
+  const [appSettings, setAppSettings] = useState({
+    autoSave: true,
+    hapticFeedback: true,
+    scanQuality: 'high' as 'low' | 'medium' | 'high',
+  });
   
-  // Animations
   const fadeAnim = useState(new Animated.Value(0))[0];
   const slideAnim = useState(new Animated.Value(50))[0];
   const pulseAnim = useState(new Animated.Value(1))[0];
   const scanLineAnim = useState(new Animated.Value(0))[0];
-  const resultAnim = useState(new Animated.Value(0))[0];
 
   useEffect(() => {
     setCurrentScreen('Scan');
     
-    // Entrance animation
+    // Load settings
+    const loadSettings = async () => {
+      const settings = await SettingsService.getSettings();
+      setAppSettings({
+        autoSave: settings.autoSave,
+        hapticFeedback: settings.hapticFeedback,
+        scanQuality: settings.scanQuality,
+      });
+      console.log('Scan screen settings loaded:', settings);
+    };
+    
+    loadSettings();
+    
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
@@ -56,30 +77,30 @@ const ScanScreen: React.FC = () => {
       }),
     ]).start();
 
-    TTSService.speak(
-      'Scan screen loaded. Tap capture button to take a photo of text, or say "take photo" to use voice commands.'
-    );
-
-    // Pulse animation for scan button
-    const startPulse = () => {
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(pulseAnim, {
-            toValue: 1.1,
-            duration: 1000,
-            useNativeDriver: true,
-          }),
-          Animated.timing(pulseAnim, {
-            toValue: 1,
-            duration: 1000,
-            useNativeDriver: true,
-          }),
-        ])
-      ).start();
+    const announceScreen = async () => {
+      await new Promise(resolve => setTimeout(resolve, 800));
+      TTSService.speak(
+        'Document scanner ready. Tap the capture button to scan text, or say Hey Assistant then Scan Document. The app will read the text aloud automatically.'
+      );
     };
+    
+    announceScreen();
 
-    startPulse();
-  }, [setCurrentScreen, fadeAnim, slideAnim, pulseAnim]);
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.1,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+  }, []);
 
   const animateScanLine = () => {
     scanLineAnim.setValue(0);
@@ -93,17 +114,109 @@ const ScanScreen: React.FC = () => {
     ).start();
   };
 
-  const animateResults = () => {
-    Animated.timing(resultAnim, {
-      toValue: 1,
-      duration: 500,
-      useNativeDriver: true,
-    }).start();
+  const handleVoiceCommand = (command: string) => {
+    const lowerCommand = command.toLowerCase();
+    
+    if (lowerCommand.includes('scan') || lowerCommand.includes('capture') || lowerCommand.includes('take photo')) {
+      handleCapture();
+    } else if (lowerCommand.includes('gallery') || lowerCommand.includes('select photo')) {
+      handleGalleryPick();
+    } else if (lowerCommand.includes('close') || lowerCommand.includes('back')) {
+      navigation.goBack();
+    }
+  };
+
+  const handleGalleryPick = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        quality: 1,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        setIsProcessing(true);
+        await processImage(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error('Gallery error:', error);
+      TTSService.speak('Failed to open gallery');
+    }
+  };
+
+  const processImage = async (imageUri: string) => {
+    setLastImageUri(imageUri);
+    TTSService.speak('Processing image. Please wait.');
+    animateScanLine();
+    
+    const ocrResult = await GoogleVisionService.detectText(imageUri);
+    
+    setIsProcessing(false);
+    
+    if (ocrResult.error) {
+      if (appSettings.hapticFeedback) {
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      }
+      TTSService.speak(`Error: ${ocrResult.error}`);
+    } else if (ocrResult.text) {
+      if (appSettings.hapticFeedback) {
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+      
+      setScannedText(ocrResult.text);
+      setConfidence(ocrResult.confidence);
+      
+      // Auto-save if enabled
+      if (appSettings.autoSave) {
+        console.log('Auto-save enabled, saving document...');
+        await autoSaveDocument(ocrResult.text);
+      }
+      
+      setShowTextModal(true);
+    } else {
+      if (appSettings.hapticFeedback) {
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      }
+      TTSService.speak('No text found in image. Try again with better lighting.');
+    }
+  };
+
+  const autoSaveDocument = async (text: string) => {
+    try {
+      const savedTexts = await FileSystem.readAsStringAsync(
+        FileSystem.documentDirectory + 'saved_texts.json'
+      ).catch(() => '[]');
+
+      const texts = JSON.parse(savedTexts);
+      const timestamp = Date.now();
+      const title = `Document ${new Date(timestamp).toLocaleDateString()}`;
+
+      const newText = {
+        id: timestamp.toString(),
+        text,
+        timestamp,
+        title,
+      };
+
+      texts.push(newText);
+
+      await FileSystem.writeAsStringAsync(
+        FileSystem.documentDirectory + 'saved_texts.json',
+        JSON.stringify(texts)
+      );
+
+      console.log('Document auto-saved:', title);
+      TTSService.speak('Document automatically saved to library');
+    } catch (error) {
+      console.error('Auto-save error:', error);
+    }
   };
 
   const handleCapture = async () => {
     try {
-      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      if (appSettings.hapticFeedback) {
+        await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      }
       
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       
@@ -115,97 +228,76 @@ const ScanScreen: React.FC = () => {
       setIsProcessing(true);
       setScannedText('');
       setConfidence(0);
-      resultAnim.setValue(0);
       animateScanLine();
       
       TTSService.speak('Taking photo. Hold the device steady and ensure text is clearly visible.');
 
+      const qualityValue = SettingsService.getQualityValue(appSettings.scanQuality);
+      
       const result = await ImagePicker.launchCameraAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         aspect: [4, 3],
-        quality: 0.9,
+        quality: qualityValue,
         exif: false,
       });
 
       if (!result.canceled && result.assets[0]) {
-        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        setLastImageUri(result.assets[0].uri);
-        TTSService.speak('Image captured successfully. Processing text, please wait.');
-        
-        const ocrResult = await GoogleVisionService.detectText(result.assets[0].uri);
-        
-        setIsProcessing(false);
-        
-        if (ocrResult.error) {
-          await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-          TTSService.speak(`Error processing image: ${ocrResult.error}. Please try taking another photo with better lighting.`);
-        } else if (ocrResult.text) {
+        if (appSettings.hapticFeedback) {
           await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          setScannedText(ocrResult.text);
-          setConfidence(ocrResult.confidence);
-          animateResults();
-          
-          const confidenceDescription = ocrResult.confidence > 80 ? 'high' : ocrResult.confidence > 60 ? 'medium' : 'low';
-          TTSService.speak(`Text detected with ${confidenceDescription} confidence. The text reads: ${ocrResult.text}`);
-        } else {
-          await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-          TTSService.speak('No text found in the image. Please try again with better lighting, clearer text, or get closer to the document.');
         }
+        TTSService.speak('Image captured. Processing text...');
+        await processImage(result.assets[0].uri);
       } else {
         setIsProcessing(false);
-        TTSService.speak('Photo cancelled. Ready to try again.');
+        TTSService.speak('Cancelled. Ready to try again.');
       }
     } catch (error) {
       setIsProcessing(false);
       console.error('Camera error:', error);
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      if (appSettings.hapticFeedback) {
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      }
       TTSService.speak('Error accessing camera. Please check permissions and try again.');
     }
   };
 
-  const handleReadAgain = () => {
-    if (scannedText) {
-      TTSService.speak(`Reading text again: ${scannedText}`);
-    } else {
-      TTSService.speak('No text to read. Please scan an image first.');
+  const handleSaveDocument = async () => {
+    if (!scannedText) return;
+
+    try {
+      const savedTexts = await FileSystem.readAsStringAsync(
+        FileSystem.documentDirectory + 'saved_texts.json'
+      ).catch(() => '[]');
+      
+      const texts = JSON.parse(savedTexts);
+      const newDocument = {
+        id: Date.now().toString(),
+        text: scannedText,
+        timestamp: Date.now(),
+        title: `Scan ${texts.length + 1}`,
+        confidence,
+      };
+      
+      texts.unshift(newDocument);
+      
+      await FileSystem.writeAsStringAsync(
+        FileSystem.documentDirectory + 'saved_texts.json',
+        JSON.stringify(texts)
+      );
+      
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      TTSService.speak('Document saved to library successfully');
+    } catch (error) {
+      console.error('Save error:', error);
+      TTSService.speak('Failed to save document');
     }
   };
 
-  const handleReadSlowly = () => {
-    if (scannedText) {
-      TTSService.speakSlowly(`Reading slowly: ${scannedText}`);
-    } else {
-      TTSService.speak('No text to read slowly. Please scan an image first.');
-    }
-  };
-
-  const handleRetry = () => {
-    if (lastImageUri) {
-      setIsProcessing(true);
-      setScannedText('');
-      setConfidence(0);
-      resultAnim.setValue(0);
-      
-      TTSService.speak('Reprocessing the last image...');
-      
-      GoogleVisionService.detectText(lastImageUri).then(ocrResult => {
-        setIsProcessing(false);
-        
-        if (ocrResult.error) {
-          TTSService.speak(`Retry failed: ${ocrResult.error}`);
-        } else if (ocrResult.text) {
-          setScannedText(ocrResult.text);
-          setConfidence(ocrResult.confidence);
-          animateResults();
-          TTSService.speak(`Retry successful. Text detected: ${ocrResult.text}`);
-        } else {
-          TTSService.speak('Retry completed but no text was found.');
-        }
-      });
-    } else {
-      TTSService.speak('No previous image to retry. Please take a new photo.');
-    }
+  const handleCloseModal = () => {
+    setShowTextModal(false);
+    setScannedText('');
+    setConfidence(0);
   };
 
   const handleGoHome = () => {
@@ -216,7 +308,7 @@ const ScanScreen: React.FC = () => {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" />
       <LinearGradient
-        colors={['#667eea', '#764ba2', '#f093fb']}
+        colors={[MD.colors.primary, MD.colors.secondary, '#f093fb']}
         style={styles.gradient}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
@@ -296,104 +388,50 @@ const ScanScreen: React.FC = () => {
             />
           </Animated.View>
 
-          {/* Results Section */}
-          {scannedText && (
-            <Animated.View 
-              style={[
-                styles.resultsSection,
-                {
-                  opacity: resultAnim,
-                  transform: [{
-                    translateY: resultAnim.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [20, 0],
-                    })
-                  }]
-                }
-              ]}
-            >
-              <BlurView intensity={60} tint="dark" style={styles.resultCard}>
-                <View style={styles.resultHeader}>
-                  <Text style={styles.confidenceText}>
-                    🎯 Confidence: {confidence}%
-                  </Text>
-                  <View style={[
-                    styles.confidenceBadge,
-                    { backgroundColor: confidence > 80 ? '#4CAF50' : confidence > 60 ? '#FF9500' : '#FF3B30' }
-                  ]}>
-                    <Text style={styles.confidenceBadgeText}>
-                      {confidence > 80 ? 'HIGH' : confidence > 60 ? 'MEDIUM' : 'LOW'}
-                    </Text>
-                  </View>
-                </View>
-                
-                <ScrollView style={styles.textContainer} showsVerticalScrollIndicator={false}>
-                  <Text style={styles.scannedText}>{scannedText}</Text>
-                </ScrollView>
-                
-                <View style={styles.actionButtons}>
-                  <AccessibleButton
-                    title="🔊 Read Again"
-                    onPress={handleReadAgain}
-                    description="Read the scanned text again at normal speed"
-                    variant="success"
-                    size="small"
-                  />
-                  
-                  <AccessibleButton
-                    title="🐌 Read Slowly"
-                    onPress={handleReadSlowly}
-                    description="Read the scanned text at a slower pace"
-                    variant="warning"
-                    size="small"
-                  />
-                </View>
-
-                {lastImageUri && (
-                  <AccessibleButton
-                    title="🔄 Retry OCR"
-                    onPress={handleRetry}
-                    description="Process the last image again to improve text recognition"
-                    variant="glass"
-                    size="small"
-                  />
-                )}
-              </BlurView>
-            </Animated.View>
-          )}
-
-          {/* Empty State */}
           {!scannedText && !isProcessing && (
             <View style={styles.placeholderSection}>
+              <Ionicons name="document-text-outline" size={80} color="rgba(255,255,255,0.5)" />
               <Text style={styles.placeholderText}>
-                📄 Captured text will appear here
+                No document scanned yet
               </Text>
               <Text style={styles.placeholderSubtext}>
-                Take a photo to get started
+                Tap capture to scan your first document
               </Text>
             </View>
           )}
 
-          {/* Bottom Controls */}
           <View style={styles.bottomControls}>
-            <AccessibleButton
-              title="🏠 Home"
+            <TouchableOpacity
+              style={[styles.bottomButton, MD.elevation.level2]}
               onPress={handleGoHome}
-              description="Return to the main home screen"
-              variant="secondary"
-              size="medium"
-            />
+              accessibilityLabel="Go home"
+            >
+              <Ionicons name="home" size={24} color="#FFFFFF" />
+              <Text style={styles.bottomButtonText}>Home</Text>
+            </TouchableOpacity>
             
-            <AccessibleButton
-              title={isListening ? "🛑 Stop Listening" : "🎤 Voice Commands"}
-              onPress={isListening ? stopListening : startListening}
-              description={isListening ? "Stop voice recognition" : "Start listening for voice commands"}
-              variant={isListening ? "danger" : "warning"}
-              size="medium"
-            />
+            <TouchableOpacity
+              style={[styles.bottomButton, MD.elevation.level2]}
+              onPress={handleGalleryPick}
+              accessibilityLabel="Select from gallery"
+            >
+              <Ionicons name="images" size={24} color="#FFFFFF" />
+              <Text style={styles.bottomButtonText}>Gallery</Text>
+            </TouchableOpacity>
           </View>
         </Animated.View>
       </LinearGradient>
+
+      <TextReviewModal
+        visible={showTextModal}
+        text={scannedText}
+        title="Scanned Document"
+        confidence={confidence}
+        onClose={handleCloseModal}
+        onSave={handleSaveDocument}
+        autoPlay={true}
+        initialSaved={appSettings.autoSave}
+      />
     </SafeAreaView>
   );
 };
@@ -610,7 +648,24 @@ const styles = StyleSheet.create({
   bottomControls: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 10,
+    gap: MD.spacing.md,
+    marginBottom: MD.spacing.md,
+  },
+  bottomButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    borderRadius: MD.borderRadius.md,
+    paddingVertical: MD.spacing.md,
+    minHeight: MD.touchTarget.comfortable,
+  },
+  bottomButtonText: {
+    ...MD.typography.button,
+    color: '#FFFFFF',
+    marginLeft: MD.spacing.sm,
+    textTransform: 'none',
   },
 });
 

@@ -1,10 +1,19 @@
 import { SettingsProvider } from "@/context/SettingsContext";
 import { VoiceProvider } from "@/context/VoiceContext";
+import { SettingsService } from "@/services/SettingsService";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
+import { useEffect } from "react";
 import { AccessibilityProvider } from "../context/AccessibilityContext";
 
 export default function RootLayout() {
+  useEffect(() => {
+    // Initialize settings service
+    SettingsService.initialize().then(() => {
+      console.log('SettingsService initialized');
+    });
+  }, []);
+
   return (
     <>
       <SettingsProvider>

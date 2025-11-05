@@ -1,22 +1,24 @@
+import { TextReviewModal } from "@/components/TextReviewModal";
+import { MD } from "@/constants/MaterialDesign";
 import { useSettings } from "@/context/SettingsContext";
 import { useVoice } from "@/context/VoiceContext";
+import { TTSService } from "@/services/TTSServices";
 import { openGallery } from "@/utils/gallery";
-import { speak } from "@/utils/speechUtils";
 import { Ionicons } from "@expo/vector-icons";
 import { useCameraPermissions } from "expo-camera";
-import * as FileSystem from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 import { LinearGradient } from "expo-linear-gradient";
-import { useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import { useFocusEffect, useRouter } from "expo-router";
+import React, { useCallback, useEffect, useState } from "react";
 import {
-    Alert,
-    Dimensions,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Alert,
+  Dimensions,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 import type { ColorValue } from "react-native";
@@ -42,93 +44,104 @@ interface QuickAction {
   requiresGallery?: boolean;
 }
 
+interface SavedText {
+  id: string;
+  text: string;
+  timestamp: number;
+  title: string;
+}
+
 export default function HomeScreen() {
   const router = useRouter();
   const { settings } = useSettings();
-  const { startListening, processTextCommand } = useVoice();
-  const [permission] = useCameraPermissions();
+  const { startListening, processTextCommand, startWakeWordListening, isWakeWordActive } = useVoice();
+  const [permission, requestPermission] = useCameraPermissions();
   const [recentScans, setRecentScans] = useState<RecentScan[]>([]);
   const [savedTextsCount, setSavedTextsCount] = useState(0);
   const [hasGreeted, setHasGreeted] = useState(false);
+  const [selectedDocument, setSelectedDocument] = useState<SavedText | null>(null);
+  const [showDocumentModal, setShowDocumentModal] = useState(false);
 
   const quickActions: QuickAction[] = [
     {
       id: "1",
       title: "Scan Document",
-      subtitle: "Capture & extract text",
-      icon: "document-text-outline",
-      gradient: ["#667eea", "#764ba2"],
+      subtitle: "Capture and read text",
+      icon: "document-text",
+      gradient: [MD.colors.primary, MD.colors.primaryDark] as any,
       route: "/scan",
       requiresCamera: true,
     },
     {
       id: "2",
+      title: "Library",
+      subtitle: "Saved documents",
+      icon: "library",
+      gradient: [MD.colors.secondary, MD.colors.secondaryDark] as any,
+      route: "/(tabs)/library",
+    },
+    {
+      id: "3",
       title: "From Gallery",
-      subtitle: "Select existing photo",
-      icon: "images-outline",
+      subtitle: "Select photo",
+      icon: "images",
       gradient: ["#f093fb", "#f5576c"],
       requiresGallery: true,
     },
     {
-      id: "3",
-      title: "QR Scanner",
-      subtitle: "Scan QR & barcodes",
-      icon: "qr-code-outline",
-      gradient: ["#4facfe", "#00f2fe"],
-      route: "/qr-scanner",
-      requiresCamera: true,
-    },
-    {
       id: "4",
-      title: "Voice Notes",
-      subtitle: "Audio to text",
-      icon: "mic-outline",
+      title: "Object Detection",
+      subtitle: "Identify objects",
+      icon: "eye",
       gradient: ["#43e97b", "#38f9d7"],
-      route: "/voice-notes",
+      route: "/object-detection",
     },
   ];
 
   useEffect(() => {
-    loadRecentScans();
-    loadSavedTextsCount();
-    
     // Greet user on first load
     if (!hasGreeted && settings.userName) {
-      const greeting = `Hello ${settings.userName}! How can I help you today?`;
-      speak(greeting);
-      setHasGreeted(true);
+      setTimeout(() => {
+        const greeting = `Hello ${settings.userName}! How can I help you today?`;
+        TTSService.speak(greeting);
+        setHasGreeted(true);
+      }, 1000);
     }
   }, [settings.userName, hasGreeted]);
 
+  // Reload data when screen is focused
+  useFocusEffect(
+    useCallback(() => {
+      loadRecentScans();
+      loadSavedTextsCount();
+    }, [])
+  );
+
   const loadRecentScans = async () => {
     try {
-      // Mock recent scans - replace with actual data loading
-      const mockScans: RecentScan[] = [
-        {
-          id: "1",
-          title: "Business Contract",
-          preview: "This agreement is made between...",
-          timestamp: Date.now() - 3600000,
-          type: "document",
-        },
-        {
-          id: "2",
-          title: "Recipe Notes",
-          preview: "Ingredients: 2 cups flour, 1 cup sugar...",
-          timestamp: Date.now() - 7200000,
-          type: "text",
-        },
-        {
-          id: "3",
-          title: "QR Code Result",
-          preview: "https://example.com/product/123",
-          timestamp: Date.now() - 86400000,
-          type: "qr",
-        },
-      ];
-      setRecentScans(mockScans);
+      const savedData = await FileSystem.readAsStringAsync(
+        FileSystem.documentDirectory + "saved_texts.json"
+      ).catch(() => "[]");
+      
+      const allTexts = JSON.parse(savedData);
+      
+      // Convert saved texts to recent scans format, take most recent 3
+      const recentScans: RecentScan[] = allTexts
+        .sort((a: any, b: any) => b.timestamp - a.timestamp)
+        .slice(0, 3)
+        .map((saved: any) => ({
+          id: saved.id,
+          title: saved.title,
+          preview: saved.text.substring(0, 100) + (saved.text.length > 100 ? '...' : ''),
+          timestamp: saved.timestamp,
+          type: "document" as const,
+        }));
+      
+      setRecentScans(recentScans);
+      console.log('Loaded', recentScans.length, 'recent scans');
     } catch (error) {
       console.log("Error loading recent scans:", error);
+      setRecentScans([]);
     }
   };
 
@@ -144,24 +157,32 @@ export default function HomeScreen() {
     }
   };
 
-  const handleQuickAction = (action: QuickAction) => {
+  const handleQuickAction = async (action: QuickAction) => {
     if (action.requiresGallery) {
       openGallery();
       return;
     }
+    
     if (action.requiresCamera && !permission?.granted) {
-      Alert.alert(
-        "Camera Permission Required",
-        "Please grant camera access to use this feature.",
-        [
-          { text: "Cancel", style: "cancel" },
-          { text: "Settings", onPress: () => router.push("/(tabs)/settings") },
-        ]
-      );
-      return;
+      // Request camera permission
+      const { granted } = await requestPermission();
+      
+      if (!granted) {
+        Alert.alert(
+          "Camera Permission Required",
+          "Please grant camera access to use this feature.",
+          [
+            { text: "Cancel", style: "cancel" },
+            { text: "Settings", onPress: () => router.push("/(tabs)/settings") },
+          ]
+        );
+        return;
+      }
     }
 
-    router.push(action.route as any);
+    if (action.route) {
+      router.push(action.route as any);
+    }
   };
 
   const handleVoiceCommand = async () => {
@@ -197,6 +218,31 @@ export default function HomeScreen() {
     }
   };
 
+  const openRecentScan = async (scanId: string) => {
+    try {
+      const savedData = await FileSystem.readAsStringAsync(
+        FileSystem.documentDirectory + "saved_texts.json"
+      ).catch(() => "[]");
+      
+      const allTexts = JSON.parse(savedData);
+      const document = allTexts.find((doc: SavedText) => doc.id === scanId);
+      
+      if (document) {
+        setSelectedDocument(document);
+        setShowDocumentModal(true);
+        TTSService.speak(`Opening ${document.title}`);
+      }
+    } catch (error) {
+      console.log("Error opening recent scan:", error);
+      Alert.alert("Error", "Could not open document");
+    }
+  };
+
+  const handleCloseModal = () => {
+    setShowDocumentModal(false);
+    setSelectedDocument(null);
+  };
+
   return (
     <View style={styles.container}>
       <StatusBar
@@ -221,14 +267,26 @@ export default function HomeScreen() {
           </View>
           <View style={styles.headerButtons}>
             <TouchableOpacity
-              style={styles.voiceButton}
+              style={[
+                styles.voiceButton,
+                isWakeWordActive && styles.voiceButtonActive
+              ]}
               onPress={handleVoiceCommand}
+              accessibilityLabel="Voice commands"
             >
-              <Ionicons name="mic" size={20} color="white" />
+              <Ionicons 
+                name={isWakeWordActive ? "mic" : "mic-outline"} 
+                size={20} 
+                color="white" 
+              />
+              {isWakeWordActive && (
+                <View style={styles.listeningIndicator} />
+              )}
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.profileButton}
               onPress={() => router.push("/(tabs)/settings")}
+              accessibilityLabel="Settings"
             >
               <Ionicons name="settings-outline" size={24} color="white" />
             </TouchableOpacity>
@@ -292,7 +350,7 @@ export default function HomeScreen() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Recent Scans</Text>
-            <TouchableOpacity onPress={() => router.push("/history")}>
+            <TouchableOpacity onPress={() => router.push("/library")}>
               <Text style={styles.seeAllText}>See All</Text>
             </TouchableOpacity>
           </View>
@@ -303,7 +361,7 @@ export default function HomeScreen() {
                 <TouchableOpacity
                   key={scan.id}
                   style={styles.recentItem}
-                  onPress={() => router.push(`/scan-detail/${scan.id}`)}
+                  onPress={() => openRecentScan(scan.id)}
                 >
                   <View style={styles.recentIcon}>
                     <Ionicons
@@ -361,6 +419,15 @@ export default function HomeScreen() {
         {/* Bottom Spacing */}
         <View style={styles.bottomSpacing} />
       </ScrollView>
+
+      {/* Document Review Modal */}
+      <TextReviewModal
+        visible={showDocumentModal}
+        text={selectedDocument?.text || ''}
+        title={selectedDocument?.title || 'Document'}
+        onClose={handleCloseModal}
+        autoPlay={true}
+      />
     </View>
   );
 }
@@ -393,6 +460,19 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     marginRight: 12,
+    position: 'relative',
+  },
+  voiceButtonActive: {
+    backgroundColor: "rgba(76,175,80,0.4)",
+  },
+  listeningIndicator: {
+    position: 'absolute',
+    top: 2,
+    right: 2,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#4CAF50',
   },
   greeting: {
     color: "rgba(255,255,255,0.8)",

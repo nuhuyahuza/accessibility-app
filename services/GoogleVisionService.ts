@@ -1,7 +1,7 @@
 import Constants from 'expo-constants';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 
-const GOOGLE_VISION_API_KEY = Constants.expoConfig?.extra?.GOOGLE_VISION_API_KEY;
+const GOOGLE_VISION_API_KEY = Constants.expoConfig?.extra?.GOOGLE_VISION_API_KEY || Constants.manifest?.extra?.GOOGLE_VISION_API_KEY;
 const GOOGLE_VISION_API_URL = 'https://vision.googleapis.com/v1/images:annotate';
 
 export interface VisionOCRResult {
@@ -30,7 +30,23 @@ export interface BarcodeResult {
 export class GoogleVisionService {
   static async detectText(imageUri: string): Promise<VisionOCRResult> {
     try {
+      console.log('=== Google Vision OCR Started ===');
+      console.log('API Key configured:', !!GOOGLE_VISION_API_KEY);
+      console.log('API Key length:', GOOGLE_VISION_API_KEY?.length || 0);
+      console.log('Image URI:', imageUri);
+      
+      if (!GOOGLE_VISION_API_KEY) {
+        console.error('No API key configured!');
+        return {
+          text: '',
+          confidence: 0,
+          error: 'Google Vision API key not configured. Please add GOOGLE_VISION_API_KEY to your app config.',
+        };
+      }
+      
+      console.log('Converting image to base64...');
       const base64Image = await this.convertImageToBase64(imageUri);
+      console.log('Base64 image size:', base64Image.length, 'characters');
       
       const requestBody = {
         requests: [
@@ -56,9 +72,23 @@ export class GoogleVisionService {
         body: JSON.stringify(requestBody),
       });
 
+      console.log('Google Vision API Response Status:', response.status);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Google Vision API Error Response:', errorText);
+        return {
+          text: '',
+          confidence: 0,
+          error: `API Error (${response.status}): ${errorText}`,
+        };
+      }
+
       const result = await response.json();
+      console.log('Google Vision API Result:', JSON.stringify(result).substring(0, 200));
 
       if (result.responses?.[0]?.error) {
+        console.error('Google Vision Response Error:', result.responses[0].error);
         return {
           text: '',
           confidence: 0,
@@ -67,12 +97,14 @@ export class GoogleVisionService {
       }
 
       const textAnnotations = result.responses?.[0]?.textAnnotations;
+      console.log('Text Annotations found:', textAnnotations?.length || 0);
       
       if (!textAnnotations || textAnnotations.length === 0) {
+        console.log('Full API Response:', JSON.stringify(result));
         return {
           text: '',
           confidence: 0,
-          error: 'No text detected in image',
+          error: 'No text detected in image. This could mean: 1) The image has no text, 2) The text is too small/blurry, 3) API key is invalid, or 4) API quota exceeded. Check console logs for details.',
         };
       }
 
@@ -178,6 +210,7 @@ export class GoogleVisionService {
             features: [
               {
                 type: 'TEXT_DETECTION',
+                maxResults: 10,
               },
             ],
           },
@@ -194,20 +227,36 @@ export class GoogleVisionService {
 
       const result = await response.json();
 
+      console.log('Google Vision API Response:', JSON.stringify(result, null, 2));
+
       if (result.responses?.[0]?.error) {
+        console.error('Vision API Error:', result.responses[0].error);
         throw new Error(result.responses[0].error.message);
       }
 
-      const textAnnotations = result.responses?.[0]?.textAnnotations || [];
       const barcodes: BarcodeResult[] = [];
 
-      if (textAnnotations.length > 0) {
-        const detectedText = textAnnotations[0].description || '';
+      const textAnnotations = result.responses?.[0]?.textAnnotations;
+      if (textAnnotations && textAnnotations.length > 0) {
+        const fullText = textAnnotations[0].description;
+        if (fullText) {
+          barcodes.push({
+            type: 'QR_CODE',
+            value: fullText.trim(),
+            format: 'TEXT_DETECTION',
+          });
+          console.log('Detected text from QR/Barcode:', fullText);
+        }
+      }
+
+      const fullTextAnnotation = result.responses?.[0]?.fullTextAnnotation;
+      if (fullTextAnnotation && fullTextAnnotation.text && barcodes.length === 0) {
         barcodes.push({
           type: 'TEXT',
-          value: detectedText,
-          format: 'DETECTED_TEXT',
+          value: fullTextAnnotation.text.trim(),
+          format: 'FULL_TEXT',
         });
+        console.log('Detected full text:', fullTextAnnotation.text);
       }
 
       return barcodes;
@@ -302,12 +351,37 @@ export class GoogleVisionService {
 
   private static async convertImageToBase64(imageUri: string): Promise<string> {
     try {
-      const base64 = await FileSystem.readAsStringAsync(imageUri, {
+      // Handle different URI formats
+      let processedUri = imageUri;
+      
+      // Remove file:// prefix if present
+      if (imageUri.startsWith('file://')) {
+        processedUri = imageUri;
+      } else if (!imageUri.startsWith('/')) {
+        // If it's not an absolute path and doesn't have file://, add it
+        processedUri = imageUri;
+      }
+      
+      // Check if file exists
+      const fileInfo = await FileSystem.getInfoAsync(processedUri);
+      if (!fileInfo.exists) {
+        console.error('File does not exist:', processedUri);
+        throw new Error(`Image file not found: ${processedUri}`);
+      }
+      
+      const base64 = await FileSystem.readAsStringAsync(processedUri, {
         encoding: FileSystem.EncodingType.Base64,
       });
+      
+      if (!base64) {
+        throw new Error('Base64 conversion returned empty string');
+      }
+      
       return base64;
     } catch (error) {
-      throw new Error('Failed to convert image to base64');
+      console.error('Base64 conversion error:', error);
+      console.error('Original URI:', imageUri);
+      throw new Error(`Failed to convert image to base64: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
