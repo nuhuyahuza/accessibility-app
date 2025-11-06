@@ -7,6 +7,7 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import React, { useEffect, useState, useCallback } from 'react';
 import {
     Alert,
+    SafeAreaView,
     ScrollView,
     StatusBar,
     StyleSheet,
@@ -128,7 +129,7 @@ export default function LibraryScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#f8f9fa" />
 
       {/* Header */}
@@ -267,7 +268,7 @@ export default function LibraryScreen() {
         onClose={handleCloseModal}
         autoPlay={true}
       />
-    </View>
+    </SafeAreaView>
   );
 }
 

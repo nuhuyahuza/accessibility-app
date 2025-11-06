@@ -44,6 +44,7 @@ export default function Onboarding() {
 
   useEffect(() => {
     checkOnboardingStatus();
+    requestEarlyPermissions();
   }, []);
 
   useEffect(() => {
@@ -52,6 +53,15 @@ export default function Onboarding() {
       speakStepInstructions();
     }
   }, [currentStep]);
+
+  const requestEarlyPermissions = async () => {
+    try {
+      console.log('🔐 Requesting microphone permission early...');
+      await GoogleSpeechService.checkAndRequestPermission();
+    } catch (error) {
+      console.log('⚠️ Early permission request failed:', error);
+    }
+  };
 
   const checkOnboardingStatus = async () => {
     try {

@@ -8,6 +8,7 @@ import React, { useEffect, useState } from "react";
 import {
   Alert,
   Linking,
+  SafeAreaView,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -396,7 +397,7 @@ export default function SettingsScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#f8f9fa" />
 
       {/* Header */}
@@ -425,7 +426,7 @@ export default function SettingsScreen() {
           <Text style={styles.footerVersion}>Version 1.0.0</Text>
         </View>
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 

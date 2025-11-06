@@ -34,41 +34,88 @@ export class VoiceService {
       this.setIsListening(true);
       this.isListening = true;
       
-      console.log('Attempting to start voice listening...');
+      console.log('🎤 Attempting to start voice listening...');
       
       await GoogleSpeechService.startRecording();
-      TTSService.speak("Listening... Speak now.");
+      // Silent - just beep (haptic feedback already provided above)
       
       setTimeout(async () => {
         if (this.isListening) {
-          await this.stopListening();
+          console.log('⏱️ Recording timeout reached (8 seconds)');
           
+          // Update UI state but DON'T cancel recording yet
+          this.setIsListening(false);
+          this.isListening = false;
+          await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          
+          // Now stop recording and get the audio
           const audioUri = await GoogleSpeechService.stopRecording();
           
           if (audioUri) {
-            TTSService.speak("Processing your command...");
+            console.log('🎵 Audio recorded, processing...');
+            // Silent processing - no voice announcement
             const result = await GoogleSpeechService.recognizeSpeech(audioUri);
             
+            console.log('📝 Recognition result:', result);
+            
             if (result.error) {
-              TTSService.speak(`Error: ${result.error}`);
+              console.error('🚨 Speech recognition error:', result.error);
+              
+              if (result.error === 'API_KEY_NOT_CONFIGURED') {
+                console.log('⚠️ API key not configured');
+                TTSService.speak("Voice service not configured. Please use touch controls.");
+              } else if (result.error.includes('Speech-to-Text API has not been used') || 
+                         result.error.includes('API has not been enabled')) {
+                console.log('⚠️ Speech-to-Text API not enabled in Google Cloud');
+                TTSService.speak("Voice recognition service not enabled. Please enable Speech to Text API in Google Cloud Console, or use touch controls.");
+              } else if (result.error === 'No speech detected') {
+                console.log('⚠️ No speech detected - might be silent recording or API issue');
+                TTSService.speak("I didn't hear anything. Please speak louder or try again.");
+              } else if (result.error.includes('permission')) {
+                TTSService.speak("Microphone permission denied. Please enable it in settings.");
+              } else if (result.error.includes('API key not valid') || result.error.includes('invalid')) {
+                console.log('⚠️ Invalid API key for Speech-to-Text');
+                TTSService.speak("Voice API key is invalid. Please use touch controls.");
+              } else {
+                TTSService.speak(`Recognition error: ${result.error.substring(0, 50)}. Please use touch controls.`);
+              }
             } else if (result.transcript) {
+              console.log('✅ Recognized text:', result.transcript);
               this.addToHistory(result.transcript);
               await this.processVoiceCommand(result.transcript);
             } else {
               TTSService.speak("I didn't hear anything. Please try again.");
             }
+          } else {
+            console.log('❌ No audio recorded');
+            TTSService.speak("Recording failed. Please try again.");
           }
         }
-      }, 3000);
+      }, 8000); // Increased to 8 seconds for more natural speech
     } catch (error) {
-      console.error("Voice start error:", error);
+      console.error("❌ Voice start error:", error);
       this.setIsListening(false);
       this.isListening = false;
       
-      if (error instanceof Error && error.message.includes('Expo Go')) {
-        TTSService.speak("Voice recognition is not available in Expo Go. You can use touch controls, or build a development APK for full voice features.");
+      // Detailed error handling
+      if (error instanceof Error) {
+        console.error('Error details:', {
+          message: error.message,
+          name: error.name,
+          stack: error.stack?.substring(0, 200)
+        });
+        
+        if (error.message.includes('Expo Go')) {
+          TTSService.speak("Voice recognition is not available in Expo Go. You can use touch controls, or build a development APK for full voice features.");
+        } else if (error.message.includes('permission')) {
+          TTSService.speak("Microphone permission denied. Please enable it in device settings.");
+        } else if (error.message.includes('API_KEY')) {
+          TTSService.speak("Voice service not configured. Using touch controls.");
+        } else {
+          TTSService.speak("Voice recognition error. Please use touch controls.");
+        }
       } else {
-        TTSService.speak("Voice recognition error. Please check microphone permissions.");
+        TTSService.speak("Voice recognition error. Please use touch controls.");
       }
     }
   }
@@ -248,10 +295,41 @@ export class VoiceService {
   }
 
   private static matchCommand(input: string, patterns: string[]): boolean {
-    return patterns.some(
-      (pattern) =>
-        input.includes(pattern) || this.levenshteinDistance(input, pattern) <= 2
-    );
+    const normalizedInput = input.toLowerCase().trim();
+    
+    return patterns.some((pattern) => {
+      const normalizedPattern = pattern.toLowerCase().trim();
+      
+      // Exact substring match (case-insensitive)
+      if (normalizedInput.includes(normalizedPattern)) {
+        console.log(`✅ Exact match: "${normalizedPattern}" found in "${normalizedInput}"`);
+        return true;
+      }
+      
+      // Word boundary match - check if any word in the pattern matches any word in input
+      const patternWords = normalizedPattern.split(/\s+/);
+      const inputWords = normalizedInput.split(/\s+/);
+      
+      // Check if all keywords from pattern exist in input
+      const keywordsMatch = patternWords.every(patternWord => 
+        inputWords.some(inputWord => 
+          inputWord.includes(patternWord) || patternWord.includes(inputWord)
+        )
+      );
+      
+      if (keywordsMatch) {
+        console.log(`✅ Keyword match: "${normalizedPattern}" keywords found in "${normalizedInput}"`);
+        return true;
+      }
+      
+      // Fuzzy match with Levenshtein distance for typos
+      if (this.levenshteinDistance(normalizedInput, normalizedPattern) <= 2) {
+        console.log(`✅ Fuzzy match: "${normalizedPattern}" close to "${normalizedInput}"`);
+        return true;
+      }
+      
+      return false;
+    });
   }
 
   private static levenshteinDistance(str1: string, str2: string): number {
