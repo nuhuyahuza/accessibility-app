@@ -43,7 +43,6 @@ export default function Onboarding() {
   const slideAnim = useState(new Animated.Value(50))[0];
 
   useEffect(() => {
-    checkOnboardingStatus();
     requestEarlyPermissions();
   }, []);
 
@@ -60,17 +59,6 @@ export default function Onboarding() {
       await GoogleSpeechService.checkAndRequestPermission();
     } catch (error) {
       console.log('⚠️ Early permission request failed:', error);
-    }
-  };
-
-  const checkOnboardingStatus = async () => {
-    try {
-      const completed = await AsyncStorage.getItem('onboarding_completed');
-      if (completed === 'true') {
-        router.replace('/(tabs)');
-      }
-    } catch (error) {
-      console.log('Error checking onboarding:', error);
     }
   };
 

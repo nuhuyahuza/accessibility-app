@@ -62,6 +62,19 @@ export class GoogleSpeechService {
     try {
       console.log('🎙️ Starting recording...');
       
+      // Clean up any existing recording first
+      if (this.recording) {
+        console.log('⚠️ Existing recording found, cleaning up...');
+        try {
+          await this.recording.stopAndUnloadAsync();
+          console.log('✅ Previous recording cleaned up');
+        } catch (cleanupError) {
+          console.log('⚠️ Error cleaning up previous recording:', cleanupError);
+        }
+        this.recording = null;
+        this.isRecording = false;
+      }
+      
       // Check permission first
       const hasPermission = await this.checkAndRequestPermission();
       if (!hasPermission) {

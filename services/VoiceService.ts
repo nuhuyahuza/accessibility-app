@@ -153,7 +153,7 @@ export class VoiceService {
 
     // Navigation commands
     if (this.matchCommand(command, ["home", "main", "go home", "main menu"])) {
-      this.navigation.navigate("Home");
+      this.navigation.push("/(tabs)");
       TTSService.speak("Navigating to home screen");
       return;
     }
@@ -166,7 +166,7 @@ export class VoiceService {
         "instructions",
       ])
     ) {
-      this.navigation.navigate("Help");
+      this.navigation.push("/help");
       TTSService.speak("Opening help and commands screen");
       return;
     }
@@ -180,7 +180,7 @@ export class VoiceService {
         "capture",
       ])
     ) {
-      this.navigation.navigate("Scan");
+      this.navigation.push("/scan");
       TTSService.speak("Opening camera to scan text");
       return;
     }
@@ -193,7 +193,7 @@ export class VoiceService {
         "call list",
       ])
     ) {
-      this.navigation.navigate("Contacts");
+      this.navigation.push("/contacts");
       TTSService.speak("Opening contacts");
       return;
     }
@@ -574,28 +574,28 @@ export class VoiceService {
   private static executeCommand(action: string, originalCommand: string) {
     switch (action) {
       case 'scan_document':
-        this.navigation.navigate('Scan');
+        this.navigation.push('/scan');
         TTSService.speak('Opening camera to scan document');
         break;
         
       case 'navigate_home':
-        this.navigation.navigate('Home');
+        this.navigation.push('/(tabs)');
         TTSService.speak('Navigating to home screen');
         break;
         
       case 'show_help':
-        this.navigation.navigate('Help');
+        this.navigation.push('/help');
         TTSService.speak('Opening help screen');
         break;
         
       case 'open_settings':
-        this.navigation.navigate('Settings');
+        this.navigation.push('/(tabs)/settings');
         TTSService.speak('Opening settings');
         break;
         
       case 'open_history':
-        this.navigation.navigate('History');
-        TTSService.speak('Opening scan history');
+        this.navigation.push('/(tabs)/library');
+        TTSService.speak('Opening library');
         break;
         
       case 'stop_speech':

@@ -57,6 +57,12 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
   const saveSettings = async () => {
     try {
       await AsyncStorage.setItem('userSettings', JSON.stringify(settings));
+      
+      // Sync isFirstLaunch with onboarding_completed
+      if (!settings.isFirstLaunch) {
+        await AsyncStorage.setItem('onboarding_completed', 'true');
+        console.log('✅ Synced onboarding_completed with settings');
+      }
     } catch (error) {
       console.error('Error saving settings:', error);
     }

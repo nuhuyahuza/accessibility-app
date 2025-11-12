@@ -28,10 +28,12 @@ export class AICommandService {
     'settings': { action: 'open_settings', confidence: 0.9 },
     'preferences': { action: 'open_settings', confidence: 0.8 },
     
-    // History commands
+    // Library/History commands
     'history': { action: 'open_history', confidence: 0.9 },
+    'library': { action: 'open_history', confidence: 0.9 },
     'recent scans': { action: 'open_history', confidence: 0.8 },
     'previous scans': { action: 'open_history', confidence: 0.8 },
+    'saved documents': { action: 'open_history', confidence: 0.8 },
     
     // Voice control commands
     'stop talking': { action: 'stop_speech', confidence: 0.9 },
