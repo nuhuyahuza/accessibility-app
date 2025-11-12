@@ -70,7 +70,10 @@ export class VoiceService {
                 TTSService.speak("Voice recognition service not enabled. Please enable Speech to Text API in Google Cloud Console, or use touch controls.");
               } else if (result.error === 'No speech detected') {
                 console.log('⚠️ No speech detected - might be silent recording or API issue');
-                TTSService.speak("I didn't hear anything. Please speak louder or try again.");
+                TTSService.speak("No speech detected. Please speak clearly into the microphone and try again.");
+              } else if (result.error.includes('Recording too short')) {
+                console.log('⚠️ Recording too short');
+                TTSService.speak("Recording too short. Please hold the microphone button and speak your command clearly.");
               } else if (result.error.includes('permission')) {
                 TTSService.speak("Microphone permission denied. Please enable it in settings.");
               } else if (result.error.includes('API key not valid') || result.error.includes('invalid')) {

@@ -4,10 +4,12 @@ import { MD } from '../constants/MaterialDesign';
 import { GoogleVisionService } from '../services/GoogleVisionService';
 import { SettingsService } from '../services/SettingsService';
 import { TTSService } from '../services/TTSServices';
+import { useAuth } from '../context/AuthContext';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import * as FileSystem from 'expo-file-system/legacy';
 import { BlurView } from 'expo-blur';
+import { useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -30,6 +32,8 @@ const { width, height } = Dimensions.get('window');
 
 const ScanScreen: React.FC = () => {
   const navigation = useNavigation();
+  const params = useLocalSearchParams();
+  const { currentUser } = useAuth();
   const { startListening, stopListening } = useVoice();
   const { setCurrentScreen, isListening } = useAccessibility();
   const [scannedText, setScannedText] = useState('');
@@ -41,7 +45,9 @@ const ScanScreen: React.FC = () => {
     autoSave: true,
     hapticFeedback: true,
     scanQuality: 'high' as 'low' | 'medium' | 'high',
+    autoCapture: false,
   });
+  const [autoCaptureTriggered, setAutoCaptureTriggered] = useState(false);
   
   const fadeAnim = useState(new Animated.Value(0))[0];
   const slideAnim = useState(new Animated.Value(50))[0];
@@ -58,6 +64,7 @@ const ScanScreen: React.FC = () => {
         autoSave: settings.autoSave,
         hapticFeedback: settings.hapticFeedback,
         scanQuality: settings.scanQuality,
+        autoCapture: settings.autoCapture,
       });
       console.log('Scan screen settings loaded:', settings);
     };
@@ -102,6 +109,47 @@ const ScanScreen: React.FC = () => {
     ).start();
   }, []);
 
+  // Handle gallery image from route params
+  useEffect(() => {
+    if (params.imageUri) {
+      processGalleryImage(params.imageUri as string);
+    }
+  }, [params.imageUri]);
+
+  // Auto-capture when enabled - captures after 3 seconds when screen loads
+  useEffect(() => {
+    let autoCaptureTimer: NodeJS.Timeout;
+    
+    if (appSettings.autoCapture && !autoCaptureTriggered && !isProcessing) {
+      console.log('Auto-capture enabled - will capture in 3 seconds');
+      TTSService.speak('Auto capture enabled. Hold camera steady over document.');
+      
+      autoCaptureTimer = setTimeout(async () => {
+        if (!isProcessing) {
+          console.log('Triggering auto-capture');
+          setAutoCaptureTriggered(true);
+          if (appSettings.hapticFeedback) {
+            await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+          }
+          TTSService.speak('Auto capturing now');
+          handleCapture();
+        }
+      }, 3000);
+    }
+    
+    return () => {
+      if (autoCaptureTimer) {
+        clearTimeout(autoCaptureTimer);
+      }
+    };
+  }, [appSettings.autoCapture, autoCaptureTriggered, isProcessing]);
+
+  const processGalleryImage = async (uri: string) => {
+    console.log('Processing gallery image from params:', uri);
+    setIsProcessing(true);
+    await processImage(uri);
+  };
+
   const animateScanLine = () => {
     scanLineAnim.setValue(0);
     Animated.loop(
@@ -130,7 +178,7 @@ const ScanScreen: React.FC = () => {
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
+        allowsEditing: false,
         quality: 1,
       });
 
@@ -196,6 +244,7 @@ const ScanScreen: React.FC = () => {
         text,
         timestamp,
         title,
+        userId: currentUser?.userId,
       };
 
       texts.push(newText);
@@ -236,8 +285,7 @@ const ScanScreen: React.FC = () => {
       
       const result = await ImagePicker.launchCameraAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [4, 3],
+        allowsEditing: false,
         quality: qualityValue,
         exif: false,
       });
@@ -277,6 +325,7 @@ const ScanScreen: React.FC = () => {
         timestamp: Date.now(),
         title: `Scan ${texts.length + 1}`,
         confidence,
+        userId: currentUser?.userId,
       };
       
       texts.unshift(newDocument);

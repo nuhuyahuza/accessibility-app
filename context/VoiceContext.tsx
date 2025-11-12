@@ -1,6 +1,7 @@
 import { GlobalVoiceCommandService } from '@/services/GlobalVoiceCommandService';
 import { TTSService } from '@/services/TTSServices';
 import { WakeWordService } from '@/services/WakeWordService';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import React, { createContext, ReactNode, useContext, useEffect, useState } from 'react';
 import { VoiceService } from '../services/VoiceService';
@@ -41,6 +42,25 @@ export const VoiceProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       setIsWakeWordActive(true);
       TTSService.speak('Yes?');
     });
+
+    // Auto-start wake word listening after onboarding completion
+    const checkAndStartWakeWord = async () => {
+      try {
+        const onboarded = await AsyncStorage.getItem('onboarding_completed');
+        if (onboarded === 'true') {
+          // Start wake word after short delay to ensure everything is initialized
+          setTimeout(() => {
+            WakeWordService.startListening();
+            setIsWakeWordActive(true);
+            console.log('✅ Wake word listening auto-started');
+          }, 3000);
+        }
+      } catch (error) {
+        console.log('⚠️ Failed to check onboarding status:', error);
+      }
+    };
+    
+    checkAndStartWakeWord();
 
     return () => {
       VoiceService.cleanup();

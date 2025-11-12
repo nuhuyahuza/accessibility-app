@@ -1,4 +1,5 @@
 import { SettingsService } from "@/services/SettingsService";
+import { useAuth } from "@/context/AuthContext";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
@@ -31,6 +32,7 @@ interface SettingItem {
 
 export default function SettingsScreen() {
   const router = useRouter();
+  const { currentUser, logout } = useAuth();
   const [settings, setSettings] = useState({
     autoSave: true,
     speechEnabled: true,
@@ -228,7 +230,75 @@ export default function SettingsScreen() {
     }
   };
 
+  const handleLogout = () => {
+    if (settings.speechEnabled) {
+      Speech.speak("Are you sure you want to logout?", { rate: 0.8 });
+    }
+    
+    Alert.alert(
+      "Logout",
+      "Are you sure you want to logout?",
+      [
+        { 
+          text: "Cancel", 
+          style: "cancel",
+          onPress: () => {
+            if (settings.speechEnabled) {
+              Speech.speak("Cancelled", { rate: 0.8 });
+            }
+          }
+        },
+        {
+          text: "Logout",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              if (settings.hapticFeedback) {
+                await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              }
+              
+              await logout();
+              
+              if (settings.speechEnabled) {
+                Speech.speak("You have been logged out", { rate: 0.8 });
+              }
+              
+              router.replace('/auth/login');
+            } catch (error) {
+              console.error("Logout error:", error);
+              Alert.alert("Error", "Failed to logout");
+              if (settings.speechEnabled) {
+                Speech.speak("Failed to logout", { rate: 0.8 });
+              }
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const settingSections = [
+    {
+      title: "Account",
+      items: [
+        {
+          id: "userName",
+          title: currentUser?.name || "User",
+          subtitle: currentUser?.email || "Not logged in",
+          icon: "person-circle-outline" as const,
+          type: "navigation" as const,
+          onPress: () => {},
+        },
+        {
+          id: "logout",
+          title: "Logout",
+          subtitle: "Sign out of your account",
+          icon: "log-out-outline" as const,
+          type: "action" as const,
+          onPress: handleLogout,
+        },
+      ],
+    },
     {
       title: "General",
       items: [

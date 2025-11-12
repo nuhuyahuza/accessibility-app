@@ -2,6 +2,7 @@ import { TextReviewModal } from "@/components/TextReviewModal";
 import { MD } from "@/constants/MaterialDesign";
 import { useSettings } from "@/context/SettingsContext";
 import { useVoice } from "@/context/VoiceContext";
+import { useAuth } from "@/context/AuthContext";
 import { TTSService } from "@/services/TTSServices";
 import { openGallery } from "@/utils/gallery";
 import { Ionicons } from "@expo/vector-icons";
@@ -50,10 +51,12 @@ interface SavedText {
   text: string;
   timestamp: number;
   title: string;
+  userId?: string;
 }
 
 export default function HomeScreen() {
   const router = useRouter();
+  const { currentUser } = useAuth();
   const { settings } = useSettings();
   const { startListening, processTextCommand, startWakeWordListening, isWakeWordActive } = useVoice();
   const [permission, requestPermission] = useCameraPermissions();
@@ -126,8 +129,12 @@ export default function HomeScreen() {
       
       const allTexts = JSON.parse(savedData);
       
+      const userTexts = allTexts.filter(
+        (text: SavedText) => text.userId === currentUser?.userId
+      );
+      
       // Convert saved texts to recent scans format, take most recent 3
-      const recentScans: RecentScan[] = allTexts
+      const recentScans: RecentScan[] = userTexts
         .sort((a: any, b: any) => b.timestamp - a.timestamp)
         .slice(0, 3)
         .map((saved: any) => ({
@@ -151,8 +158,11 @@ export default function HomeScreen() {
       const savedData = await FileSystem.readAsStringAsync(
         FileSystem.documentDirectory + "saved_texts.json"
       ).catch(() => "[]");
-      const texts = JSON.parse(savedData);
-      setSavedTextsCount(texts.length);
+      const allTexts = JSON.parse(savedData);
+      const userTexts = allTexts.filter(
+        (text: SavedText) => text.userId === currentUser?.userId
+      );
+      setSavedTextsCount(userTexts.length);
     } catch (error) {
       console.log("Error loading saved texts count:", error);
     }
@@ -160,7 +170,7 @@ export default function HomeScreen() {
 
   const handleQuickAction = async (action: QuickAction) => {
     if (action.requiresGallery) {
-      openGallery();
+      openGallery(router);
       return;
     }
     
@@ -439,7 +449,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#f8f9fa",
   },
   header: {
-    paddingTop: StatusBar.currentHeight || 44,
+    paddingTop: 20,  // Extra padding for comfortable reach
     paddingBottom: 30,
     paddingHorizontal: 20,
   },

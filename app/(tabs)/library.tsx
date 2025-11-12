@@ -1,6 +1,7 @@
 import { TextReviewModal } from '../../components/TextReviewModal';
 import { MD } from '../../constants/MaterialDesign';
 import { TTSService } from '../../services/TTSServices';
+import { useAuth } from '@/context/AuthContext';
 import { Ionicons } from '@expo/vector-icons';
 import * as FileSystem from 'expo-file-system/legacy';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -22,10 +23,12 @@ interface SavedText {
   text: string;
   timestamp: number;
   title: string;
+  userId?: string;
 }
 
 export default function LibraryScreen() {
   const router = useRouter();
+  const { currentUser } = useAuth();
   const [savedTexts, setSavedTexts] = useState<SavedText[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [filteredTexts, setFilteredTexts] = useState<SavedText[]>([]);
@@ -54,8 +57,11 @@ export default function LibraryScreen() {
       const savedData = await FileSystem.readAsStringAsync(
         FileSystem.documentDirectory + "saved_texts.json"
       ).catch(() => "[]");
-      const texts = JSON.parse(savedData);
-      setSavedTexts(texts);
+      const allTexts = JSON.parse(savedData);
+      const userTexts = allTexts.filter(
+        (text: SavedText) => text.userId === currentUser?.userId
+      );
+      setSavedTexts(userTexts);
     } catch (error) {
       console.log("Error loading saved texts:", error);
     }

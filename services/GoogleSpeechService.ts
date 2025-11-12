@@ -82,12 +82,28 @@ export class GoogleSpeechService {
       const recording = new Audio.Recording();
       console.log('✅ Recording instance created');
       
-      console.log('⚙️ Preparing to record with WEBM/OPUS (best for Android)...');
+      console.log('⚙️ Preparing to record with AMR_WB (3GPP - Google native format)...');
       try {
-        await recording.prepareToRecordAsync(
-          Audio.RecordingOptionsPresets.HIGH_QUALITY
-        );
-        console.log('✅ Recording prepared with HIGH_QUALITY preset (WebM/Opus)');
+        await recording.prepareToRecordAsync({
+          isMeteringEnabled: true,
+          android: {
+            extension: '.3gp',
+            outputFormat: Audio.AndroidOutputFormat.AMR_WB,
+            audioEncoder: Audio.AndroidAudioEncoder.AMR_WB,
+            sampleRate: 16000,
+            numberOfChannels: 1,
+            bitRate: 23850,
+          },
+          ios: {
+            extension: '.m4a',
+            outputFormat: Audio.IOSOutputFormat.MPEG4AAC,
+            audioQuality: Audio.IOSAudioQuality.HIGH,
+            sampleRate: 16000,
+            numberOfChannels: 1,
+            bitRate: 128000,
+          },
+        });
+        console.log('✅ Recording prepared with AMR_WB (3GPP format)');
       } catch (prepError) {
         console.error('❌ Failed to prepare recording:', prepError);
         throw prepError;
@@ -157,10 +173,12 @@ export class GoogleSpeechService {
         return null;
       }
       
-      if (status.durationMillis < 100) {
-        console.error('❌ Recording too short - likely no audio captured');
+      // Validate recording duration
+      if (status.durationMillis < 50) {
+        console.error('❌ Recording too short:', status.durationMillis, 'ms');
         return null;
       }
+      console.log('✅ Recording duration:', status.durationMillis, 'ms (~', Math.round(status.durationMillis / 1000), 'seconds)');
       
       // Check file size
       try {
@@ -168,7 +186,7 @@ export class GoogleSpeechService {
         console.log('📏 File exists:', fileInfo.exists);
         console.log('📏 File size:', fileInfo.size, 'bytes');
         
-        if (fileInfo.exists && fileInfo.size < 1000) {
+        if (fileInfo.exists && fileInfo.size < 500) {
           console.error('❌ File too small - likely silent recording');
           return null;
         }
@@ -212,24 +230,35 @@ export class GoogleSpeechService {
 
       console.log('📦 Audio file size:', base64Audio.length, 'characters');
 
-      // Detect audio format from file extension
-      const audioFormat = audioUri.toLowerCase().endsWith('.m4a') || audioUri.toLowerCase().endsWith('.mp4') 
-        ? 'MP3'  // Google API accepts AAC/M4A as MP3
-        : audioUri.toLowerCase().endsWith('.webm') 
-        ? 'WEBM_OPUS'
-        : 'LINEAR16';  // Fallback
+      // Validate file size (reduced to 5KB minimum to allow shorter speech)
+      const expectedMinSize = 5000;
+      if (base64Audio.length < expectedMinSize) {
+        console.error('❌ Audio file too small:', base64Audio.length, 'chars - expected at least', expectedMinSize);
+        console.error('❌ This indicates recording failed or was truncated');
+        return {
+          transcript: '',
+          confidence: 0,
+          error: 'Recording too short - please speak louder and closer to microphone',
+        };
+      }
+      console.log('✅ Audio file size validated:', base64Audio.length, 'chars (~', Math.round(base64Audio.length * 0.75 / 1024), 'KB)');
+
+      // Use AMR_WB for 3GP files (native Google format for speech)
+      const audioFormat = 'AMR_WB';
       
-      console.log('🎵 Detected audio format:', audioFormat, 'from URI:', audioUri);
+      console.log('🎵 Using audio format: AMR_WB (native Google speech format)');
 
       const requestBody = {
         config: {
-          encoding: audioFormat,
-          // Don't specify sampleRate for MP3/M4A - let API auto-detect
-          ...(audioFormat !== 'MP3' && { sampleRateHertz: 48000 }),
-          languageCode: languageCode,
+          encoding: 'AMR_WB',
+          sampleRateHertz: 16000,
+          languageCode: 'en-US',
+          alternativeLanguageCodes: ['en-GB', 'en-AU', 'en-IN'],
+          maxAlternatives: 3,
           enableAutomaticPunctuation: true,
-          model: 'command_and_search',
-          useEnhanced: false,
+          model: 'default',
+          profanityFilter: false,
+          enableWordConfidence: true,
         },
         audio: {
           content: base64Audio,

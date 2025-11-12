@@ -154,10 +154,14 @@ export default function Onboarding() {
         preferredVoice: selectedVoice,
         isFirstLaunch: false,
       });
+      
+      await AsyncStorage.setItem('onboarding_completed', 'true');
+      console.log('✅ Onboarding completed and saved');
+      
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      TTSService.speak(`Welcome ${userName || 'User'}! Your setup is complete. Taking you to the home screen now.`);
+      TTSService.speak(`Welcome ${userName || 'User'}! Your setup is complete. Please create an account to continue.`);
       setTimeout(() => {
-        router.replace('/(tabs)');
+        router.replace('/auth/signup');
       }, 2000);
     }
   };
@@ -190,8 +194,9 @@ export default function Onboarding() {
         preferredVoice: 'default',
         isFirstLaunch: false,
       });
-      TTSService.speak('Skipping setup. Taking you to the home screen.');
-      setTimeout(() => router.replace('/(tabs)'), 1500);
+      await AsyncStorage.setItem('onboarding_completed', 'true');
+      TTSService.speak('Skipping setup. Please create an account to continue.');
+      setTimeout(() => router.replace('/auth/signup'), 1500);
     } else if (lowerCommand.includes('repeat') || lowerCommand.includes('again')) {
       announceStep(currentStep);
     } else if (lowerCommand.includes('help')) {
